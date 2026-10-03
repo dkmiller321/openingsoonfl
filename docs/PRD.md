@@ -141,6 +141,8 @@ v1 ingests two DBPR sources for Brevard, turns them into one lead per restaurant
 | M3 | Cuisine icons: keyword and brand rules on the business name map to about 20 cuisines, each with an emoji. Unmatched leads get a food truck (mobile) or plate icon | P1 |
 | M4 | Time slider over the last 90 days: shows leads first seen on or before the chosen day, with a play button that animates it | P1 |
 | M5 | Radius filter: pick a Brevard town or click the map, choose 5, 10 or 25 miles, and see only the leads inside | P1 |
+| M7 | Basemap styles via Mapbox when `MAPBOX_TOKEN` is set: Auto (follows the theme), Light, Dark, Streets, Outdoors, Satellite. Without a token, greyscale OpenStreetMap | P1 |
+| M8 | Appearance: theme (Light, Dark, System) and colour palette (Classic, Ocean, Sunset, Forest, Grape, Colour-blind safe). The palette sets the accent and the two stage colours everywhere (badges, pins, board, legend). Saved in a cookie and rendered server-side (no flash) | P1 |
 | M6 | Pipeline board: "In plan review" and "Licensed" columns of lead cards (icon, name, type, city, days ahead, phone), with the same filters as the leads table | P1 |
 
 ### Source health (H)

@@ -224,6 +224,10 @@ It produces exactly these 7 leads:
 | `map-center` / `map-radius` | Town select (`None`, Cocoa, Cocoa Beach, Melbourne, Merritt Island, Palm Bay, Rockledge, Titusville, Viera) / radius select (`Off`, `5`, `10`, `25`) |
 | `board-col-applied` / `board-col-licensed` | Board columns |
 | `board-count-applied` / `board-count-licensed` | Column counts (number only) |
+| `appearance-toggle` / `appearance-panel` | Top-bar Appearance button and its panel |
+| `theme-light` / `theme-dark` / `theme-system` | Theme buttons in the panel (`aria-pressed` = current) |
+| `palette-classic` / `palette-ocean` / `palette-sunset` / `palette-forest` / `palette-grape` / `palette-cb` | Palette swatches (`aria-pressed` = current) |
+| `map-basemap` | Basemap select on the map; present only when `MAPBOX_TOKEN` is set |
 | `board-card` / `board-card-icon` | Card (multiple, `data-lead-id`) and its cuisine emoji |
 
 Helpers: `login(page)` fills `login-password` with `test-admin-pw` and submits. `api` is a small httpx client for the `/test/*` routes.
@@ -451,6 +455,14 @@ Town centres used by `map-center`: Cocoa Beach is 28.3200, -80.6076 (the full ta
 - Clicking a card's name opens the lead page.
 - Hiding The Rocket Diner on its lead page leaves `board-count-licensed` at `3`.
 
+**E2E-37 @stage6 appearance persists (M8).** Log in.
+- With no cookie, `<html>` has `data-theme="light"` and `data-palette="classic"`. The computed `--accent` is `#000000`.
+- Open `appearance-toggle` and click `theme-dark`, then `palette-ocean`. `<html>` immediately has `data-theme="dark"` and `data-palette="ocean"`, the computed `--applied` is `#38bdf8`, and the `body` background is dark (luminance below 0.2).
+- Reload and open `nav-leads`. The attributes are still `dark` / `ocean` (server-rendered from the `osfl_appearance` cookie), and `theme-dark` has `aria-pressed="true"`.
+- Click `theme-system`. `data-theme="system"`.
+
+**E2E-38 @stage6 palettes recolour stage badges and pins (M8).** Run `seed_standard`, log in and choose `palette-cb`. On `/leads`, `--applied` is `#e69f00`. On `/map`, an Applied pin's computed border colour is `rgb(230, 159, 0)`.
+
 **E2E-36 @stage6 map data respects filters (M2).** `GET /map/data.json?stage=Applied` (logged-in session) returns `{"leads": [...], "unplaced": 1}`. `leads` holds 2 items, each with `id, name, lat, lng, stage, lead_type, cuisine, icon, first_seen, days_ahead, city, phone`. Without a session it redirects to `/login`.
 
 ## 3. Smoke suite — live DBPR (manual only)
@@ -478,6 +490,7 @@ These are skipped unless `RUN_SMOKE=1`. They run against a dev server with `SOUR
 | UT-06 | `digest_period` | `2026-09-07T11:00Z` weekly → `2026-W37`. `2026-09-13T23:59-04:00` weekly → `2026-W37`. Daily `2026-09-29T03:59Z` → `2026-09-28` (still the 28th in ET) |
 | UT-07 | `health_status` | The red, amber and green rules in §1.5, including "no runs → amber" and "exactly 8 days → green" |
 | UT-10 | `guess_cuisine` | `SALT & SMOKE BBQ` → bbq. `COASTAL TACOS` → mexican. `CHIPOTLE MEXICAN GRILL - STORE #6070` → mexican. `PAPA JOHN'S PIZZA #488` → pizza. `INDIAN RIVER PHO` → asian. `VIERA NOODLE BAR` → asian (noodle beats bar). `SPACECOAST WAFFLES` → breakfast. `BANANA RIVER BAGELS` → bakery. `WINGSTOP` → chicken. `JIMMY JOHNS` → sandwich. `HILTON GARDEN INN` → hotel. `ROCKET DOGS` → hotdog. `ZERO GRAVITY WINE BAR` → bar. `DEN` → none (plate icon; truck icon if mobile) |
+| UT-11 | `basemap_url` | With token `pk.test`, `basemap_url("light", "pk.test")` → `https://api.mapbox.com/styles/v1/mapbox/light-v11/tiles/512/{z}/{x}/{y}@2x?access_token=pk.test`. `satellite` → `satellite-streets-v12`. Unknown style → light. No token → `None` |
 | UT-08 | `days_ahead` | Applied 2026-09-01 + Licensed 2026-09-29 → 28. Licensed only → 0. Applied only → `None` |
 
 ## 5. Playwright MCP walkthrough

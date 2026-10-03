@@ -124,3 +124,52 @@ def test_e2e_36_map_data_respects_filters(api: httpx.Client, live_server: str) -
     for lead in data["leads"]:
         assert keys <= set(lead)
         assert lead["stage"] == "Applied"
+
+
+def _css(page: Page, var: str) -> str:
+    return page.evaluate(
+        f"getComputedStyle(document.documentElement).getPropertyValue('{var}').trim()"
+    )
+
+
+def test_e2e_37_appearance_persists(admin: Page) -> None:
+    html = admin.locator("html")
+    expect(html).to_have_attribute("data-theme", "light")
+    expect(html).to_have_attribute("data-palette", "classic")
+    assert _css(admin, "--accent").lower() == "#000000"
+
+    admin.get_by_test_id("appearance-toggle").click()
+    expect(admin.get_by_test_id("appearance-panel")).to_be_visible()
+    admin.get_by_test_id("theme-dark").click()
+    admin.get_by_test_id("palette-ocean").click()
+    expect(html).to_have_attribute("data-theme", "dark")
+    expect(html).to_have_attribute("data-palette", "ocean")
+    assert _css(admin, "--applied").lower() == "#38bdf8"
+    luminance = admin.evaluate(
+        """() => { const m = getComputedStyle(document.body).backgroundColor.match(/\d+/g)
+                   .map(Number); return (0.2126*m[0] + 0.7152*m[1] + 0.0722*m[2]) / 255; }"""
+    )
+    assert luminance < 0.2
+
+    admin.reload()
+    admin.get_by_test_id("nav-leads").click()
+    expect(html).to_have_attribute("data-theme", "dark")
+    expect(html).to_have_attribute("data-palette", "ocean")
+    admin.get_by_test_id("appearance-toggle").click()
+    expect(admin.get_by_test_id("theme-dark")).to_have_attribute("aria-pressed", "true")
+    admin.get_by_test_id("theme-system").click()
+    expect(html).to_have_attribute("data-theme", "system")
+
+
+def test_e2e_38_palette_recolours_badges_and_pins(api: httpx.Client, admin: Page) -> None:
+    seed_standard(api)
+    admin.get_by_test_id("appearance-toggle").click()
+    admin.get_by_test_id("palette-cb").click()
+    admin.goto("/leads?stage=Applied")
+    assert _css(admin, "--applied").lower() == "#e69f00"
+    admin.goto("/map")
+    expect(admin.locator(".pin.applied").first).to_be_visible()
+    pin_border = admin.evaluate(
+        "getComputedStyle(document.querySelector('.pin.applied')).borderTopColor"
+    )
+    assert pin_border == "rgb(230, 159, 0)"

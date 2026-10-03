@@ -221,3 +221,16 @@ def test_best_phone_skips_swapped_county_code() -> None:
     assert best_phone("62", "727-475-8021", "7274758021") == "727-475-8021"
     assert best_phone("15", "", "3214448888") == "321-444-8888"
     assert best_phone("", "") == ""
+
+
+# UT-11
+def test_ut11_basemap_url() -> None:
+    from osfl.web.basemap import basemap_url
+
+    assert basemap_url("light", "pk.test") == (
+        "https://api.mapbox.com/styles/v1/mapbox/light-v11/tiles/512/{z}/{x}/{y}@2x"
+        "?access_token=pk.test"
+    )
+    assert "satellite-streets-v12" in basemap_url("satellite", "pk.test")
+    assert "light-v11" in basemap_url("nonsense", "pk.test")
+    assert basemap_url("light", "") is None
