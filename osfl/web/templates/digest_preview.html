@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Digest preview · {{ vendor.name }}{% endblock %}
+{% block content %}
+<p class="small"><a href="/vendors">&larr; Vendors</a></p>
+<div class="toolbar">
+  <div>
+    <h1>Next digest for {{ vendor.name }}</h1>
+    <p class="sub">{{ email.subject }} · to {{ vendor.emails|join(', ') }} · {{ vendor.cadence|title }}</p>
+  </div>
+  <form method="post" action="/vendors/{{ vendor.id }}/digest/test">
+    <button class="btn" data-testid="digest-send-test" type="submit">Send test to me</button>
+  </form>
+</div>
+{% for f in flashes %}
+  {% if f.kind == 'test-sent' %}<div class="notice ok" data-testid="digest-test-sent">{{ f.message }}</div>{% endif %}
+{% endfor %}
+<div class="email-preview" data-testid="digest-preview">{{ email.html|safe }}</div>
+{% endblock %}

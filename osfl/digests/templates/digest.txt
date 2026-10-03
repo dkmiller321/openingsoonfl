@@ -1,0 +1,20 @@
+OpeningSoon FL - {{ counties }} - {{ when }}
+New restaurants for {{ vendor.name }}
+
+{% if leads %}
+{% for lead in leads %}
+{{ lead.name }}
+{{ lead.type }} - {{ lead.stage }}
+{{ lead.address }}
+{% if lead.phone %}Phone: {{ lead.phone }}
+{% endif %}
+{% if lead.email %}Email: {{ lead.email }}
+{% endif %}
+
+{% endfor %}
+{% else %}
+{{ empty_line }}.
+{% endif %}
+--
+Unsubscribe: {{ unsubscribe_url }}
+{{ postal_address }}

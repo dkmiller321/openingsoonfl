@@ -43,3 +43,13 @@ Claude Code appends one section per stage: the stage number, every command run w
   - E2E-16: pass — "not-an-email" -> "Enter valid email addresses" (422); Space Coast POS created, Active, POS, Brevard, Weekly.
   - E2E-17: pass — `/leads.csv?stage=Applied` -> `leads-2026-10-05.csv` (clock date), §1.5 header, Applied rows only with empty days_ahead.
   - E2E-18: first attempt hit a 500 because the walk server was still running pre-change Python with the updated template (my change mid-walk, not an app bug). After restart: pass — display name "Viera Noodle Bar & Grill", note saved, Hide -> Unhide button, list shows "6 leads".
+
+### Stage 4 · 2026-10-03 · Digests
+- `uv run ruff check .` -> All checks passed. `uv run pytest e2e -m stage4 -q` -> 6 passed on the first run.
+- `uv run pytest e2e -m "not smoke and not stage5" -q` -> 26 passed; second run -> 26 passed.
+- MCP walkthrough (port 8002), E2E-19 chained as the operator would:
+  - E2E-19: pass. Plan reviews (2026-09-01) -> Space Coast POS created in the UI -> preview showed "3 new restaurants in Brevard - week of Aug 31, 2026" (screenshot `logs/walk-stage4-digest-preview.png`). Clock 2026-09-07T11:00Z, `send-digests-weekly` -> 1 email to pos@example.com, "3 new restaurants in Brevard - week of Sep 7, 2026", `leads-2026-09-07.csv` (header + 3 rows), "application in progress" x3. Imported weekly_w1 + weekly_w2, clock 2026-10-05T11:00Z -> "5 new restaurants in Brevard - week of Oct 5, 2026", contains "Food truck" and "Ownership change", no Indian River Pho. Deliveries: INDIAN RIVER PHO -> Space Coast POS on 2026-09-07; lead licensed 2026-09-29, 28 days ahead.
+  - E2E-20: pass — re-running `send-digests-weekly` in the same week -> `{"emails_sent":0}`.
+  - E2E-22: pass — "Send test to me" -> "Test sent to operator@example.com"; outbox "[TEST] 0 new restaurants in Brevard - week of Oct 5, 2026" (all leads already delivered, so 0 is right).
+  - E2E-23: pass — unsubscribe link from the digest -> "You're unsubscribed from OpeningSoon FL digests."; vendor shows Inactive.
+  - E2E-21, E2E-24: pytest only.

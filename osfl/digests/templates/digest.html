@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<body style="margin:0;padding:0;background:#ffffff;font-family:Arial,Helvetica,sans-serif;color:#0a0a0a;">
+<div style="max-width:620px;margin:0 auto;padding:28px 20px;">
+  <p style="font-size:13px;color:#6b6b6b;margin:0 0 6px;">OpeningSoon FL &middot; {{ counties }} &middot; {{ when }}</p>
+  <h1 style="font-size:22px;margin:0 0 18px;">New restaurants for {{ vendor.name }}</h1>
+  {% if leads %}
+  <p style="font-size:15px;margin:0 0 18px;">{{ leads|length }} restaurant{{ '' if leads|length == 1 else 's' }} you haven't seen yet. The full list is attached as a CSV.</p>
+  {% for lead in leads %}
+  <div style="border:1px solid #e7e7e7;border-radius:12px;padding:14px 16px;margin:0 0 12px;">
+    <div style="font-size:16px;font-weight:bold;">{{ lead.name }}</div>
+    <div style="font-size:13px;color:#6b6b6b;margin:2px 0 8px;">{{ lead.type }} &middot; {{ lead.stage }}</div>
+    <div style="font-size:14px;">{{ lead.address }}</div>
+    {% if lead.phone %}<div style="font-size:14px;">Phone: {{ lead.phone }}</div>{% endif %}
+    {% if lead.email %}<div style="font-size:14px;">Email: {{ lead.email }}</div>{% endif %}
+  </div>
+  {% endfor %}
+  {% else %}
+  <p style="font-size:15px;">{{ empty_line }}.</p>
+  {% endif %}
+  <hr style="border:none;border-top:1px solid #e7e7e7;margin:24px 0 12px;">
+  <p style="font-size:12px;color:#6b6b6b;line-height:1.5;margin:0;">
+    Leads come from Florida DBPR public records. You agreed to follow CAN-SPAM and TCPA rules when contacting them.<br>
+    <a href="{{ unsubscribe_url }}" style="color:#6b6b6b;">Unsubscribe</a><br>
+    {{ postal_address }}
+  </p>
+</div>
+</body>
+</html>
