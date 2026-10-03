@@ -65,3 +65,33 @@ Claude Code appends one section per stage: the stage number, every command run w
   - E2E-30: pass — `/test/schedule` at 2026-10-14T12:00Z -> check-health 12:15Z, weekly digest Monday 2026-10-19T11:00Z.
   - E2E-19 (re-walked): pass — vendor created in the UI; "3 new restaurants in Brevard - week of Sep 7, 2026" includes Indian River Pho; "5 new restaurants in Brevard - week of Oct 5, 2026" doesn't; delivered 2026-09-07.
   - E2E-25, E2E-27: pytest only.
+
+### Final acceptance · 2026-10-03
+1. `docker compose -f docker-compose.yml -f docker-compose.test.yml up -d --build` -> `GET http://127.0.0.1:8010/health` -> `{"status":"ok","db":"ok"}` (8010 instead of 8000; DECISIONS D5).
+2. `BASE_URL=http://127.0.0.1:8010 uv run pytest e2e -m "not smoke" -q` -> 29 passed, 3 skipped, three runs in a row; **0 flaky**. The three skips need a local process: E2E-01/-02 (throwaway server with a different env) and E2E-05 (local CLI). They were checked in the container by hand:
+   - E2E-05: `docker compose exec app osfl import-weekly --dir fixtures/dbpr_weekly/weekly_w1` -> 4 leads; `export-csv` -> §1.5 header, SPACECOAST WAFFLES first.
+   - E2E-01: `docker compose run -e ADMIN_PASSWORD= app uvicorn osfl.main:app` -> "Invalid configuration: ADMIN_PASSWORD: Value error, must not be empty".
+   - E2E-02: step 4 below (/test/reset -> 404 without the override).
+   - Locally (no BASE_URL) the full suite is 32 passed.
+3. MCP walkthrough against the container (127.0.0.1:8010), chained:
+   - login -> dashboard (3/3/0; weekly amber, plan review green) -> vendor Space Coast POS -> preview "3 new restaurants in Brevard - week of Aug 31, 2026" (3 leads).
+   - **E2E-19 last:** "3 new restaurants in Brevard - week of Sep 7, 2026" includes Indian River Pho with `leads-2026-09-07.csv`; after both licence weeks, "5 new restaurants in Brevard - week of Oct 5, 2026" doesn't include it. The lead page shows Licensed, 28 days ahead, Applied@2026-09-01 then Licensed@2026-09-29.
+   - /sources: dbpr_weekly green (2 runs), dbpr_plan_review amber. All pass.
+4. `docker compose up -d` (no override) -> `POST /test/reset` -> 404; the scheduler logged 5 jobs: check-health 15:15 ET, import-plan-review 05:00, import-weekly 06:00, send-digests-daily 07:00, send-digests-weekly Mon 2026-10-05 07:00.
+5. `RUN_SMOKE=1 SOURCE_MODE=live uv run pytest e2e -m smoke -q` -> 3 passed, 1 skipped (SMOKE-4: no `RESEND_API_KEY`). Live licence files: 3157 rows statewide. Live headers match `fixtures/headers/`. Live plan reviews -> 176 Brevard leads in plan review.
+6. `docs/DEPLOY.md` written (VPS, production .env, Caddy, pg_dump cron, Resend SPF/DKIM, scheduler checks).
+
+**Totals:** unit 31/31; E2E 32/32 locally, 29/29 + 3 skipped against the container (×3); smoke 3/3 + 1 skipped; MCP walkthroughs: every UI scenario across stages 0-5, E2E-19 three times, plus once on the container.
+
+**Known issues / follow-ups**
+- No real email sent yet: needs `RESEND_API_KEY`, `EMAIL_FROM` and a verified domain (SMOKE-4 skipped).
+- Unsubscribe is a one-click GET (required by E2E-23); link-prefetching mail scanners could unsubscribe a vendor. Consider `List-Unsubscribe-Post` or a confirm button (DECISIONS D9).
+- DBPR seems to refresh the files weekly (Saturday morning `last-modified`), so the daily tier adds little until a faster source exists (PRD risk).
+- The local Compose stack runs with `SOURCE_MODE=fixture` from `.env`, so its scheduled imports log a FetchError. Set `SOURCE_MODE=live` to let it import by itself.
+
+**Current local data (live DBPR, 2026-10-03):** 251 Brevard leads: 174 in plan review (76 new, 89 food trucks, 9 owner changes) and 77 licensed. 247 have a phone or email. Licensed leads that had a plan review first showed up a median of 58 days before the licence. This week's sheet: `exports/brevard-2026-10-03.csv` (7 leads first seen since 2026-09-26).
+
+**Run it yourself**
+- App (already running): `docker compose up -d` -> http://127.0.0.1:8010, password = `ADMIN_PASSWORD` in `.env` (`change-me`).
+- This week's Brevard sheet:
+  `SOURCE_MODE=live uv run osfl import-plan-review --county brevard && SOURCE_MODE=live uv run osfl import-weekly --county brevard && uv run osfl export-csv --county brevard --since <7 days ago> --out exports/brevard-<date>.csv`
