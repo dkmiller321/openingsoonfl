@@ -16,7 +16,7 @@ Every scenario below becomes a pytest-playwright spec in `e2e/` **before** the f
 | `BASE_URL=http://127.0.0.1:8000 uv run pytest e2e -m "not smoke"` | Runs against an already-running app, such as the Compose stack started with the test override. |
 | `RUN_SMOKE=1 uv run pytest e2e -m smoke` | Live-DBPR smoke suite (§3). Never in normal runs. |
 
-Every spec carries its stage marker, and its function name starts with the scenario id, for example `test_e2e_08_pending_and_licence_merge`. Chromium only, headless, run serially (the specs share one database). Keep traces on failure under `test-results/`. pytest-playwright wipes `test-results/` at the start of every run, so server logs go to `logs/`, never there.
+Every spec carries its stage marker, and its function name starts with the scenario id, for example `test_e2e_08_plan_review_and_licence_merge`. Chromium only, headless, run serially (the specs share one database). Keep traces on failure under `test-results/`. pytest-playwright wipes `test-results/` at the start of every run, so server logs go to `logs/`, never there.
 
 ### 1.2 The test server
 
@@ -41,7 +41,7 @@ These are mounted only when `TEST_ROUTES=1`. Otherwise every `/test/*` path retu
 |---|---|---|
 | `POST /test/reset` | none | Truncates every table, re-seeds `categories`, clears the frozen clock. Returns `{"ok": true}`. Every spec calls it in a fixture before it runs. |
 | `POST /test/clock` | `{"now": "2026-09-01T12:00:00Z"}` or `{"now": null}` | Sets or clears the frozen clock (`FAKE_NOW`). All "now" reads in the app go through one `clock.now()`. |
-| `POST /test/run/{job}` | `{"fixture": "<name>"}` (source jobs only) | Runs the job **through the same function the CLI and scheduler call**. Source jobs get a `FixtureFetcher` instead of the live fetcher. Jobs: `import-weekly`, `scrape-pending`, `send-digests-weekly`, `send-digests-daily`, `check-health`. |
+| `POST /test/run/{job}` | `{"fixture": "<name>"}` (source jobs only) | Runs the job **through the same function the CLI and scheduler call**. Source jobs get a `FixtureFetcher` instead of the live fetcher. Jobs: `import-weekly`, `import-plan-review`, `send-digests-weekly`, `send-digests-daily`, `check-health`. |
 | `GET /test/leads` | none | All leads, sorted by `business_name`: `[{id, business_name, address, county, lead_type, stage, first_seen, licensed_on, days_ahead, hidden, note, events: [{stage, date, source}]}]`. Dates are ISO `YYYY-MM-DD`, and `days_ahead` is `null` until licensed. |
 | `GET /test/state` | none | Row counts: `{leads, raw_records, source_runs, outbox, deliveries, digests}`. |
 | `GET /test/outbox` | none | Emails, oldest first: `[{id, to: [..], subject, html, text, attachments: [{filename, content_type, content_b64}], created_at}]`. |
@@ -53,85 +53,106 @@ A source job returns `{run_id, status: "ok"|"failed", rows_fetched, rows_new, le
 
 ### 1.4 Fixtures (deterministic DBPR data)
 
-Each source is split into a **fetcher**, which does network I/O and returns raw bytes or pages, and a **parser**, a pure function from those bytes to records. In fixture mode only the fetcher is replaced. The real parser, classifier, matcher, transaction handling and `source_runs` bookkeeping all run.
+Each source is split into a **fetcher**, which does network I/O and returns raw bytes per file, and a **parser**, a pure function from those bytes to records. In fixture mode only the fetcher is replaced: `FixtureFetcher` reads files from `fixtures/`. The real parser, classifier, matcher, transaction handling and `source_runs` bookkeeping all run.
 
-**Stage 0 capture spike.** Fetch one real weekly file for the DBPR district that covers Brevard. Fetch one real licence-search results page (plus a detail page if the site has them) for Brevard food-service applications in progress.
+**Sources** (all plain CSV downloads; URLs and real headers are in `docs/DECISIONS.md` D1):
 
-- Save trimmed copies as `fixtures/dbpr_weekly/weekly_real_sample.csv` (at least 20 rows) and `fixtures/dbpr_search/pending_real_sample/`.
-- Record the real URLs, column names and search flow in `docs/DECISIONS.md`.
-- **Then build every canonical fixture below in the real format.** Use the captured header and column order for the CSVs, and the captured HTML structure for search pages, with rows replaced.
+| Source | Files fetched per run | Stage it produces | Event date column |
+|---|---|---|---|
+| `dbpr_weekly` | `newfood.csv` (new licences) **and** `chgownr_food.csv` (owner changes), 2 s apart | Licensed | `Application Approval Date ` (note the trailing space in the real header) |
+| `dbpr_plan_review` | `HR_plan_review.csv` | Applied | `Review Application Date` |
 
-If the real format has no explicit field for something below (for example "change of ownership"), record how it's derived in DECISIONS.md. Stop and ask only if a scenario becomes impossible to express.
+The two licence files share one 38-column header. A fixture for `dbpr_weekly` is a **directory** holding both files. A fixture for `dbpr_plan_review` is a single CSV. Every canonical fixture uses the **real captured headers and column order** (`fixtures/headers/`), with the rows below filled into the real columns. Columns not listed are left empty, except `Location County` / `County` and `Location State Code` = `FL`.
 
-If the licence search can't list in-progress applications by county without a login or CAPTCHA, **stop and ask**. This is the PRD's biggest open question.
+**Classification:**
 
-**`weekly_w1`** (6 rows):
+| File | Rule | lead_type |
+|---|---|---|
+| licence files | `Rank Code` SEAT or NOST | new |
+| licence files | `Rank Code` MFDV or HTDG | mobile |
+| licence files | `Rank Code` CATR or VEND | ignored |
+| `chgownr_food.csv` | any non-ignored rank | ownership_change (wins over mobile) |
+| plan review | `Transaction` contains `Change Owner` | ownership_change |
+| plan review | `Transaction` contains `MFDV` or `Hot Dog` | mobile |
+| plan review | `Transaction` contains `SEAT`, `NOST`, `COMBO)` or ends in `Initial Plan Review` | new |
+| plan review | `Transaction` contains `Request Plan Review`, or `Type of Facility (Rank)` = `Catering` | ignored |
 
-| # | Business (DBA) | Licensee | Address | City | ZIP | County | Licence class | Kind | Issued |
+Rows outside `COUNTIES` are counted in `rows_fetched` but never stored. `rows_new` = new in-county raw records.
+
+**`weekly_w1/`** (6 rows: 5 in `newfood.csv`, 1 in `chgownr_food.csv`):
+
+| # | File | Business Name | Licensee Name | Location Street Address | City | ZIP | County | Rank | Licence No. | Approval date | Primary phone |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| W1-1 | newfood | SALT & SMOKE BBQ | SALT & SMOKE BBQ LLC | 1450 N HARBOR CITY BLVD | MELBOURNE | 32935 | Brevard | SEAT | SEA1590001 | 09/22/2026 | 321-555-0101 |
+| W1-2 | newfood | COASTAL TACOS | COASTAL TACOS INC | 210 W COCOA BEACH CSWY | COCOA BEACH | 32931 | Brevard | NOST | NOS1590002 | 09/23/2026 | 321-555-0102 |
+| W1-3 | chgownr | THE ROCKET DINER | ROCKET DINER HOLDINGS LLC | 3500 S WASHINGTON AVE | TITUSVILLE | 32780 | Brevard | SEAT | SEA1590003 | 09/24/2026 | 321-555-0103 |
+| W1-4 | newfood | SPACECOAST WAFFLES | SPACECOAST WAFFLES LLC | 1100 MALABAR RD SE | PALM BAY | 32907 | Brevard | MFDV | MFD1590004 | 09/25/2026 | 321-555-0104 |
+| W1-5 | newfood | HARBOR VENDING CO | HARBOR VENDING CO | 100 E NEW HAVEN AVE | MELBOURNE | 32901 | Brevard | VEND | VEN1590005 | 09/21/2026 | |
+| W1-6 | newfood | LAKE EOLA RAMEN | LAKE EOLA RAMEN LLC | 50 E CENTRAL BLVD | ORLANDO | 32801 | Orange | SEAT | SEA5890006 | 09/22/2026 | 407-555-0106 |
+
+**`weekly_w2/`** (3 rows, all in `newfood.csv`; `chgownr_food.csv` is header-only):
+
+| # | Business Name | Licensee Name | Location Street Address | City | ZIP | County | Rank | Licence No. | Approval date | Primary phone |
+|---|---|---|---|---|---|---|---|---|---|---|
+| W2-1 | INDIAN RIVER PHO | INDIAN RIVER PHO LLC | 2235 N COURTENAY PKWY | MERRITT ISLAND | 32953 | Brevard | SEAT | SEA1590007 | 09/29/2026 | 321-555-0201 |
+| W2-2 | COCOA VILLAGE CREPERIE | COCOA VILLAGE CREPERIE LLC | 401 DELANNOY AVE | COCOA | 32922 | Brevard | NOST | NOS1590008 | 09/30/2026 | 321-555-0202 |
+| W2-3 | SPACE COAST CATERING | SPACE COAST CATERING LLC | 77 CLEARLAKE RD | COCOA | 32922 | Brevard | CATR | CAT1590009 | 09/28/2026 | |
+
+**`plan_review_0901.csv`** (3 rows, all Brevard, `Plan Review Status Plan` = `In process`, `License Number ` empty):
+
+| # | Business (DBA) Name | Facility Location Address | City | ZIP | Review Application Date | Transaction | Facility Phone | Facility Email | Mailing Name |
 |---|---|---|---|---|---|---|---|---|---|
-| W1-1 | Salt & Smoke BBQ | Salt & Smoke BBQ LLC | 1450 N Harbor City Blvd | Melbourne | 32935 | Brevard | Permanent Food Service - Seating | new | 2026-09-22 |
-| W1-2 | Coastal Tacos | Coastal Tacos Inc | 210 W Cocoa Beach Cswy | Cocoa Beach | 32931 | Brevard | Permanent Food Service - Non-Seating | new | 2026-09-23 |
-| W1-3 | The Rocket Diner | Rocket Diner Holdings LLC | 3500 S Washington Ave | Titusville | 32780 | Brevard | Permanent Food Service - Seating | ownership change | 2026-09-24 |
-| W1-4 | Spacecoast Waffles | Spacecoast Waffles LLC | 1100 Malabar Rd SE | Palm Bay | 32907 | Brevard | Mobile Food Dispensing Vehicle | new | 2026-09-25 |
-| W1-5 | Harbor Grill | Harbor Grill Inc | 100 E New Haven Ave | Melbourne | 32901 | Brevard | Permanent Food Service - Seating | renewal | 2026-09-21 |
-| W1-6 | Lake Eola Ramen | Lake Eola Ramen LLC | 50 E Central Blvd | Orlando | 32801 | Orange | Permanent Food Service - Seating | new | 2026-09-22 |
+| P-1 | Indian River Pho LLC | 2235 N. Courtenay Parkway | MERRITT ISLAND | 32953 | 09/01/2026 | 1034/Plan Review and Initial (COMBO SEAT) | 321-555-0301 | owner@indianriverpho.example | INDIAN RIVER PHO LLC |
+| P-2 | BANANA RIVER BAGELS | 1980 N Atlantic Ave Suite 101 | COCOA BEACH | 32931 | 09/01/2026 | 1031/Initial Plan Review (NOST) | 321-555-0302 | bagels@example.com | BANANA RIVER BAGELS LLC |
+| P-3 | VIERA NOODLE BAR | 7720 N WICKHAM RD | MELBOURNE | 32940 | 09/01/2026 | 1030/Initial Plan Review (SEAT) | 321-555-0303 | | VIERA NOODLE BAR INC |
 
-**`weekly_w2`** (3 rows):
-
-| # | Business (DBA) | Licensee | Address | City | ZIP | County | Licence class | Kind | Issued |
-|---|---|---|---|---|---|---|---|---|---|
-| W2-1 | Indian River Pho | Indian River Pho LLC | 2235 N Courtenay Pkwy | Merritt Island | 32953 | Brevard | Permanent Food Service - Seating | new | 2026-09-29 |
-| W2-2 | Cocoa Village Creperie | Cocoa Village Creperie LLC | 401 Delannoy Ave | Cocoa | 32922 | Brevard | Permanent Food Service - Non-Seating | new | 2026-09-30 |
-| W2-3 | Harbor Grill | Harbor Grill Inc | 100 E New Haven Ave | Melbourne | 32901 | Brevard | Permanent Food Service - Seating | renewal | 2026-09-28 |
-
-**`pending_0901`** (search results, status "Application in Progress", all Brevard):
-
-| # | Name as listed | Address as listed | City | ZIP | Licence class |
-|---|---|---|---|---|---|
-| P-1 | Indian River Pho LLC | 2235 N. Courtenay Parkway | Merritt Island | 32953 | Permanent Food Service - Seating |
-| P-2 | Banana River Bagels LLC | 1980 N Atlantic Ave Suite 101 | Cocoa Beach | 32931 | Permanent Food Service - Non-Seating |
-| P-3 | Viera Noodle Bar | 7720 N Wickham Rd | Melbourne | 32940 | Permanent Food Service - Seating |
-
-P-1 and W2-1 differ in suffix (`LLC`), punctuation (`N.`) and street type (`Parkway`/`Pkwy`). The matcher must still merge them.
+P-1 and W2-1 differ in suffix (`LLC`), punctuation (`N.`), street type (`Parkway`/`Pkwy`) and case, and P-1 has no licence number. The matcher must still merge them by `lead_key`.
 
 **Other fixtures:**
 
 | Fixture | Content | Used by |
 |---|---|---|
-| `pending_1006` | P-1 only (a stale listing seen after the licence) | E2E-09 |
-| `pending_partial_error` | Page 1 = P-2. Fetching page 2 raises `FetchError("page 2: HTTP 500")` | E2E-10 |
-| `weekly_empty` | The captured header with zero data rows | E2E-26 |
-| `weekly_bad_columns` | `weekly_w1` with the county column's header renamed to `CNTY_RENAMED` | E2E-27 |
-| `weekly_unavailable` | The fetcher raises `FetchError("HTTP 503")` | E2E-25 |
-| `weekly_real_sample`, `pending_real_sample` | Trimmed real captures | E2E-06, E2E-11 |
+| `plan_review_1006.csv` | P-1 again, but `Review Application Date` 10/06/2026 (a resubmitted plan) | E2E-09 |
+| `weekly_partial_error/` | `newfood.csv` = `weekly_w1`'s. Fetching `chgownr_food.csv` raises `FetchError("chgownr_food.csv: HTTP 500")` | E2E-10 |
+| `plan_review_with_licence.csv` | One row: DBA `SALTY BAGEL CAFE`, address `223 W HIBISCUS BLVD`, ZIP 32901, `License Number ` `1590010`, application date 08/01/2026, Transaction `1034/Plan Review and Initial (COMBO SEAT)` | E2E-09b |
+| `weekly_licence_match/` | `newfood.csv` with one row: `SALTY BAGEL`, `223 W HIBISCUSS BLVD` (misspelt, as in real DBPR data), ZIP 32901, SEAT, `SEA1590010`, approved 09/15/2026 | E2E-09b |
+| `weekly_empty/` | Both files with the real header and zero data rows | E2E-26 |
+| `weekly_bad_columns/` | `weekly_w1` with the `Location County` header in `newfood.csv` renamed to `CNTY_RENAMED` | E2E-27 |
+| `weekly_unavailable/` | Fetching `newfood.csv` raises `FetchError("newfood.csv: HTTP 503")` | E2E-25 |
+| `weekly_real_sample/`, `plan_review_real_sample.csv` | Trimmed real captures from 2026-10-03: every Brevard row plus 10 Orange rows | E2E-06, E2E-11 |
+
+`FixtureFetcher` raises a fixture's configured error from a small manifest, `fixtures/errors.json` (`{"weekly_unavailable": {"newfood.csv": "newfood.csv: HTTP 503"}, ...}`), so failure paths go through the same code as real HTTP errors.
 
 **Standard dataset.** The helper `seed_standard(api)` does three things:
 
-1. Clock `2026-09-01T12:00:00Z`, then run `scrape-pending` with `pending_0901`.
+1. Clock `2026-09-01T12:00:00Z`, then run `import-plan-review` with `plan_review_0901.csv`.
 2. Clock `2026-09-28T12:00:00Z`, then run `import-weekly` with `weekly_w1`.
 3. Leave the clock at `2026-09-28T12:00:00Z`.
 
 It produces exactly these 7 leads:
 
-| Lead | lead_type | stage | first_seen | licensed_on | days_ahead |
-|---|---|---|---|---|---|
-| Banana River Bagels | new | Applied | 2026-09-01 | | |
-| Indian River Pho | new | Applied | 2026-09-01 | | |
-| Viera Noodle Bar | new | Applied | 2026-09-01 | | |
-| Salt & Smoke BBQ | new | Licensed | 2026-09-22 | 2026-09-22 | 0 |
-| Coastal Tacos | new | Licensed | 2026-09-23 | 2026-09-23 | 0 |
-| The Rocket Diner | ownership_change | Licensed | 2026-09-24 | 2026-09-24 | 0 |
-| Spacecoast Waffles | mobile | Licensed | 2026-09-25 | 2026-09-25 | 0 |
+| Lead | lead_type | stage | first_seen | licensed_on | days_ahead | phone | email |
+|---|---|---|---|---|---|---|---|
+| Banana River Bagels | new | Applied | 2026-09-01 | | | 321-555-0302 | bagels@example.com |
+| Indian River Pho | new | Applied | 2026-09-01 | | | 321-555-0301 | owner@indianriverpho.example |
+| Viera Noodle Bar | new | Applied | 2026-09-01 | | | 321-555-0303 | |
+| Salt & Smoke BBQ | new | Licensed | 2026-09-22 | 2026-09-22 | 0 | 321-555-0101 | |
+| Coastal Tacos | new | Licensed | 2026-09-23 | 2026-09-23 | 0 | 321-555-0102 | |
+| The Rocket Diner | ownership_change | Licensed | 2026-09-24 | 2026-09-24 | 0 | 321-555-0103 | |
+| Spacecoast Waffles | mobile | Licensed | 2026-09-25 | 2026-09-25 | 0 | 321-555-0104 | |
 
-`seed_plus_w2(api)` = the standard dataset, then clock `2026-10-05T10:00:00Z` and `import-weekly` with `weekly_w2`. Indian River Pho becomes Licensed (licensed_on 2026-09-29, days_ahead 28) and Cocoa Village Creperie is added (new, Licensed, 2026-09-30, 0). That makes 8 leads.
+`seed_plus_w2(api)` = the standard dataset, then clock `2026-10-05T10:00:00Z` and `import-weekly` with `weekly_w2`. That makes 8 leads:
 
-**Name display:** `business_name` comes from the most recent record. Assertions on names use case-insensitive substring matches, so "Indian River Pho" matches "Indian River Pho LLC".
+- Indian River Pho becomes Licensed: licensed_on 2026-09-29, days_ahead 28. Its phone becomes 321-555-0201, the newest non-empty value. Its email stays owner@indianriverpho.example, because the licence row has none.
+- Cocoa Village Creperie is added: new, Licensed, 2026-09-30, 0.
+
+**Name display:** `business_name` comes from the most recent record, unless the operator set a display name (L5). Assertions on names use case-insensitive substring matches, after HTML-unescaping when checking email HTML. So "Indian River Pho" matches "INDIAN RIVER PHO", and "Salt & Smoke BBQ" matches "SALT &amp; SMOKE BBQ".
 
 ### 1.5 Fixed formats
 
 | Thing | Exact format |
 |---|---|
-| CSV header (web, CLI, digest attachment) | `business_name,address,city,zip,county,lead_type,stage,first_seen,licensed_on,days_ahead,licensee` |
+| CSV header (web, CLI, digest attachment) | `business_name,address,city,zip,county,lead_type,stage,first_seen,licensed_on,days_ahead,licensee,phone,email` |
 | CSV values | `lead_type` ∈ `new`, `ownership_change`, `mobile`. `stage` ∈ `Applied`, `Licensed`. Dates are ISO. `days_ahead` and `licensed_on` are empty until licensed. Rows are sorted by `first_seen` descending, then `business_name` ascending |
 | Web export filename | `leads-YYYY-MM-DD.csv` (date = today in ET from the clock) |
 | Weekly digest subject | `{n} new restaurant(s) in {Counties} - week of {Mon D, YYYY}`, for example `3 new restaurants in Brevard - week of Sep 7, 2026`, or `1 new restaurant in Brevard - week of Sep 7, 2026` |
@@ -139,16 +160,17 @@ It produces exactly these 7 leads:
 | Test digest subject | `[TEST] ` + the subject the real digest would have |
 | Empty digest body | Contains `No new restaurants this week` (weekly) or `No new restaurants today` (daily) |
 | Digest lead stage label | `Application in progress` for Applied. `Licensed {Mon D, YYYY}` for Licensed |
+| Digest lead block | Name, type label, stage label, address, city, ZIP, then `Phone: {phone}` and `Email: {email}` lines (each omitted when empty) |
 | Lead type labels (UI and digest) | `New`, `Ownership change`, `Food truck` |
 | Digest attachment | `leads-YYYY-MM-DD.csv` (send date in ET), the same columns as above, only that digest's leads |
 | Digest footer | An unsubscribe link `{APP_BASE_URL}/unsubscribe/{token}` and the exact `OPERATOR_POSTAL_ADDRESS` text |
-| Alert subject | `[OpeningSoon FL] Source problem: {source} - {reason}`, where source ∈ `dbpr_weekly`, `dbpr_pending` and reason ∈ `run failed`, `zero rows`, `columns changed`, `stale` |
+| Alert subject | `[OpeningSoon FL] Source problem: {source} - {reason}`, where source ∈ `dbpr_weekly`, `dbpr_plan_review` and reason ∈ `run failed`, `zero rows`, `columns changed`, `stale` |
 | Days-ahead label (UI) | `28 days ahead`, `0 days ahead`, or `—` when not licensed |
 | CLI output | ASCII only (the Windows console is cp1252). Export prints `Exported {n} leads to {path}` |
 
-**Health status:** red = the last run failed, returned zero rows while the 4-week average was above 0, or saw changed columns. Amber = the last successful run is older than 8 days (`dbpr_weekly`) or 36 hours (`dbpr_pending`). Otherwise green. A source with no runs at all is amber.
+**Health status:** red = the last run failed, returned zero rows while the 4-week average was above 0, or saw changed columns. Amber = the last successful run is older than 8 days (`dbpr_weekly`) or 36 hours (`dbpr_plan_review`). Otherwise green. A source with no runs at all is amber.
 
-**Schedule (ET):** `scrape-pending` daily 05:00. `import-weekly` daily 06:00, because DBPR's publication day isn't fixed and imports are idempotent. `send-digests-daily` daily 07:00. `send-digests-weekly` Monday 07:00. `check-health` hourly at :15.
+**Schedule (ET):** `import-plan-review` daily 05:00. `import-weekly` daily 06:00, because DBPR's update day isn't fixed and imports are idempotent. `send-digests-daily` daily 07:00. `send-digests-weekly` Monday 07:00. `check-health` hourly at :15.
 
 ### 1.6 Selector contract (`data-testid`)
 
@@ -166,6 +188,7 @@ It produces exactly these 7 leads:
 | `filter-county` / `filter-from` / `filter-to` / `filter-search` / `filter-hidden` | County select, date inputs, search box, "Show hidden" checkbox |
 | `filter-apply` / `export-csv` | Apply filters. Download CSV of the current filter |
 | `lead-detail-name` / `lead-detail-stage` / `lead-detail-type` / `lead-detail-days-ahead` | Lead page header |
+| `lead-detail-phone` / `lead-detail-email` / `lead-detail-licensee` | Contact panel on the lead page (`—` when empty) |
 | `timeline-event` | Each event (multiple, oldest first). Has `data-stage` and `data-date` |
 | `raw-record` | Each source record block (multiple). Has `data-source` |
 | `lead-hide` / `lead-unhide` / `lead-edit-name` / `lead-note-input` / `lead-save` | L5 controls |
@@ -195,42 +218,53 @@ Each scenario starts from `POST /test/reset` and runs against the test server. "
 
 ### Stage 1 — Weekly import + lead sheet
 
-**E2E-03 @stage1 weekly import creates leads (I1, I3, L1).** Clock `2026-09-28T12:00:00Z`. Run `import-weekly` with `weekly_w1`.
-- The response has `status: "ok"`, `rows_fetched: 6`, `rows_new: 6` and `leads_created: 4`.
-- `/test/leads` has exactly 4 leads: Salt & Smoke BBQ (new), Coastal Tacos (new), The Rocket Diner (`ownership_change`) and Spacecoast Waffles (`mobile`). All are Licensed, with `days_ahead` 0 and county Brevard.
-- Neither Harbor Grill (renewal) nor Lake Eola Ramen (Orange) is a lead.
-- `/test/state.raw_records` = 6. `/test/runs[0]` has `source: "dbpr_weekly"` and `status: "ok"`.
+**E2E-03 @stage1 weekly import creates leads (I1, I3, L1, L7).** Clock `2026-09-28T12:00:00Z`. Run `import-weekly` with `weekly_w1`.
+- The response has `status: "ok"`, `rows_fetched: 6`, `rows_new: 5` and `leads_created: 4`.
+- `/test/leads` has exactly 4 leads: SALT & SMOKE BBQ (new), COASTAL TACOS (new), THE ROCKET DINER (`ownership_change`) and SPACECOAST WAFFLES (`mobile`). All are Licensed, with `days_ahead` 0, county Brevard, and the phone from their row.
+- Neither HARBOR VENDING CO (VEND) nor LAKE EOLA RAMEN (Orange) is a lead.
+- `/test/state.raw_records` = 5, because the Orange row isn't stored. `/test/runs[0]` has `source: "dbpr_weekly"` and `status: "ok"`.
 
-**E2E-04 @stage1 import is idempotent (I2).** Run `import-weekly` with `weekly_w1` twice. The second response has `rows_new: 0` and `leads_created: 0`. Afterwards `/test/state` shows `leads` 4, `raw_records` 6 and `source_runs` 2.
+**E2E-04 @stage1 import is idempotent (I2).** Run `import-weekly` with `weekly_w1` twice. The second response has `rows_new: 0` and `leads_created: 0`. Afterwards `/test/state` shows `leads` 4, `raw_records` 5 and `source_runs` 2.
 
-**E2E-05 @stage1 CLI lead sheet (E4, U1).** With the test `DATABASE_URL`, run `uv run osfl import-weekly --county brevard --file fixtures/dbpr_weekly/weekly_w1.csv` (exit 0). Then run `uv run osfl export-csv --county brevard --since 2026-09-01 --out <tmp>/leads.csv`.
+**E2E-05 @stage1 CLI lead sheet (E4, U1).** With the test `DATABASE_URL`, run `uv run osfl import-weekly --county brevard --dir fixtures/dbpr_weekly/weekly_w1` (exit 0). Then run `uv run osfl export-csv --county brevard --since 2026-09-01 --out <tmp>/leads.csv`.
 - Exit code 0, and stdout is `Exported 4 leads to <path>`.
 - The file's first line equals the CSV header in §1.5 exactly.
-- It has 4 data rows, the first being Spacecoast Waffles (latest `first_seen`).
-- The Salt & Smoke BBQ row has `lead_type` `new`, `stage` `Licensed`, `first_seen` `2026-09-22`, `licensed_on` `2026-09-22`, `days_ahead` `0` and `licensee` `Salt & Smoke BBQ LLC`.
+- It has 4 data rows, the first being SPACECOAST WAFFLES (latest `first_seen`).
+- The SALT & SMOKE BBQ row has `lead_type` `new`, `stage` `Licensed`, `first_seen` `2026-09-22`, `licensed_on` `2026-09-22`, `days_ahead` `0`, `licensee` `SALT & SMOKE BBQ LLC`, `phone` `321-555-0101` and an empty `email`.
 
-**E2E-06 @stage1 real sample parses (I1).** Run `import-weekly` with `weekly_real_sample`. The response has `status: "ok"`, `rows_fetched` ≥ 20 and `error: null`. Every lead in `/test/leads` has county Brevard, and none has an empty `business_name` or `address`.
+**E2E-06 @stage1 real sample parses (I1).** Run `import-weekly` with `weekly_real_sample`.
+- The response has `status: "ok"`, `rows_fetched` ≥ 20 and `error: null`.
+- Every lead in `/test/leads` has county Brevard, and none has an empty `business_name` or `address`.
+- At least one lead has each `lead_type`: `new`, `ownership_change` and `mobile`.
 
-### Stage 2 — Pending scrape + merge
+### Stage 2 — Plan review import + merge
 
-**E2E-07 @stage2 pending applications become Applied leads (I4, U2).** Clock `2026-09-01T12:00:00Z`. Run `scrape-pending` with `pending_0901`. The response has `leads_created: 3`. All three leads (Banana River Bagels, Indian River Pho, Viera Noodle Bar) are `Applied`, with `first_seen` `2026-09-01`, `days_ahead` `null`, and one event each with `source: "dbpr_pending"`.
+**E2E-07 @stage2 plan reviews become Applied leads (I4, L7, U2).** Clock `2026-09-01T12:00:00Z`. Run `import-plan-review` with `plan_review_0901.csv`. The response has `leads_created: 3`.
+- All three leads (Banana River Bagels, Indian River Pho, Viera Noodle Bar) are `Applied`, with `first_seen` `2026-09-01`, `days_ahead` `null`, and one event each with `source: "dbpr_plan_review"`.
+- Banana River Bagels has `phone` `321-555-0302` and `email` `bagels@example.com`.
+- Viera Noodle Bar has an empty `email`.
 
-**E2E-08 @stage2 pending + licence merge into one lead (L2, L3, L4).** Run `seed_plus_w2`.
+**E2E-08 @stage2 plan review + licence merge into one lead (L2, L3, L4, L7).** Run `seed_plus_w2`.
 - `/test/leads` has 8 leads and exactly one whose name matches `indian river pho`.
-- That lead has `stage` `Licensed`, `first_seen` `2026-09-01`, `licensed_on` `2026-09-29` and `days_ahead` `28`.
-- Its `events` are `[{stage: "Applied", date: "2026-09-01", source: "dbpr_pending"}, {stage: "Licensed", date: "2026-09-29", source: "dbpr_weekly"}]`.
+- That lead has `stage` `Licensed`, `first_seen` `2026-09-01`, `licensed_on` `2026-09-29`, `days_ahead` `28`, `phone` `321-555-0201` and `email` `owner@indianriverpho.example`.
+- Its `events` are `[{stage: "Applied", date: "2026-09-01", source: "dbpr_plan_review"}, {stage: "Licensed", date: "2026-09-29", source: "dbpr_weekly"}]`.
 
-**E2E-09 @stage2 stage never regresses, first_seen never moves later (L3).** Clock `2026-10-05T10:00:00Z`, then run `import-weekly` with `weekly_w2`. Clock `2026-10-06T12:00:00Z`, then run `scrape-pending` with `pending_1006`.
+**E2E-09 @stage2 stage never regresses, first_seen never moves later (L3).** Clock `2026-10-05T10:00:00Z`, then run `import-weekly` with `weekly_w2`. Clock `2026-10-06T12:00:00Z`, then run `import-plan-review` with `plan_review_1006.csv`.
 - Indian River Pho has `stage` `Licensed`, `first_seen` `2026-09-29` and `days_ahead` `0`.
 - It has 2 events, the second being `Applied` dated `2026-10-06`.
 - The lead count is 2 (Indian River Pho, Cocoa Village Creperie).
 
-**E2E-10 @stage2 failed scrape is atomic (Reliability, H1).** Clock `2026-09-01T12:00:00Z`. Run `scrape-pending` with `pending_partial_error`.
-- The response has `status: "failed"`, `leads_created: 0`, and an `error` containing `page 2`.
-- `/test/state` shows `leads` 0 and `raw_records` 0.
+**E2E-09b @stage2 licence-number match beats a misspelt address (L2).** Clock `2026-08-01T12:00:00Z`, then run `import-plan-review` with `plan_review_with_licence.csv`. Clock `2026-09-16T12:00:00Z`, then run `import-weekly` with `weekly_licence_match`. `/test/leads` has exactly 1 lead, with 2 events, `stage` `Licensed`, `first_seen` `2026-08-01`, `licensed_on` `2026-09-15` and `days_ahead` `45`.
+
+**E2E-10 @stage2 a failed run is atomic (Reliability, H1).** Clock `2026-09-28T12:00:00Z`. Run `import-weekly` with `weekly_partial_error`.
+- The response has `status: "failed"`, `leads_created: 0`, and an `error` containing `chgownr_food.csv`.
+- `/test/state` shows `leads` 0 and `raw_records` 0, even though `newfood.csv` was fetched and parsed.
 - `/test/runs[0]` has `status: "failed"`.
 
-**E2E-11 @stage2 real search sample parses (I4).** Run `scrape-pending` with `pending_real_sample`. The response has `status: "ok"` and `error: null`. Every resulting lead is `Applied` with a non-empty name, address and ZIP.
+**E2E-11 @stage2 real plan-review sample parses (I4).** Run `import-plan-review` with `plan_review_real_sample.csv`.
+- The response has `status: "ok"` and `error: null`.
+- There are at least 50 leads, all with county Brevard, stage `Applied`, and a non-empty name, address and ZIP.
+- At least 80% have a phone or an email.
 
 ### Stage 3 — Admin console
 
@@ -242,7 +276,7 @@ Each scenario starts from `POST /test/reset` and runs against the test server. "
 
 **E2E-13 @stage3 dashboard (A4).** Run `seed_standard`. After login:
 - `stat-new-this-week` = `4` (leads with `first_seen` in the 7 days up to now), `stat-applied` = `3`, `stat-active-vendors` = `0`.
-- There's a `source-last-run` row for each source. `dbpr_weekly` has `data-status` `green`. `dbpr_pending` has `data-status` `amber`, because its last run on 2026-09-01 is older than 36 hours.
+- There's a `source-last-run` row for each source. `dbpr_weekly` has `data-status` `green`. `dbpr_plan_review` has `data-status` `amber`, because its last run on 2026-09-01 is older than 36 hours.
 
 **E2E-14 @stage3 leads table, filters, search and persistence (A2, U2).** Run `seed_standard`, then log in and open `nav-leads`.
 - `leads-count` = `7 leads`. The default order is `first_seen` descending, so the first row is Spacecoast Waffles.
@@ -255,7 +289,8 @@ Each scenario starts from `POST /test/reset` and runs against the test server. "
 **E2E-15 @stage3 lead detail and timeline (A3, U3).** Run `seed_plus_w2`, then log in and open the Indian River Pho row.
 - `lead-detail-stage` = `Licensed` and `lead-detail-days-ahead` = `28 days ahead`.
 - Two `timeline-event`s appear in order: (`Applied`, `2026-09-01`) and (`Licensed`, `2026-09-29`).
-- Two `raw-record`s appear, with `data-source` `dbpr_pending` and `dbpr_weekly`. The pending one shows the text `2235 N. Courtenay Parkway`.
+- Two `raw-record`s appear, with `data-source` `dbpr_plan_review` and `dbpr_weekly`. The plan-review one shows the text `2235 N. Courtenay Parkway`.
+- `lead-detail-phone` = `321-555-0201`, `lead-detail-email` = `owner@indianriverpho.example` and `lead-detail-licensee` = `INDIAN RIVER PHO LLC`.
 
 **E2E-16 @stage3 vendor management (V1, V2, U4).** Log in and open `nav-vendors`.
 - The `vendor-category` options are exactly `POS`, `Equipment`, `Insurance`, `Payroll`, `Pest control`, `Food supply` and `Other`.
@@ -272,19 +307,20 @@ Each scenario starts from `POST /test/reset` and runs against the test server. "
 **E2E-18 @stage3 hide, rename, note (L5).** Run `seed_standard`, then log in and open Viera Noodle Bar.
 - Set `lead-edit-name` to `Viera Noodle Bar & Grill` and `lead-note-input` to `Owner is Sam, opening Nov`, then click `lead-save`. **Reload:** both values persist.
 - Click `lead-hide`. Back on the leads list, `leads-count` = `6 leads`. Ticking `filter-hidden` shows 7.
-- A later re-scrape with `pending_0901` (clock `2026-09-02T12:00:00Z`) keeps the custom name and the hidden flag.
+- A later re-import of `plan_review_0901.csv` (clock `2026-09-02T12:00:00Z`) keeps the custom name and the hidden flag.
 
 ### Stage 4 — Digests
 
 **E2E-19 @stage4 ★ MOST IMPORTANT — a vendor hears about a restaurant while it's still applying, and never twice (E1, E3, E4, L4, U7).**
 
-1. Clock `2026-09-01T12:00:00Z`, then run `scrape-pending` with `pending_0901`.
+1. Clock `2026-09-01T12:00:00Z`, then run `import-plan-review` with `plan_review_0901.csv`.
 2. Log in and create vendor `Space Coast POS` (pos@example.com, POS, Brevard, weekly, active) through the UI.
 3. Clock `2026-09-07T11:00:00Z` (Monday 07:00 ET), then run `send-digests-weekly`. The response has `emails_sent: 1`.
 4. `/test/outbox` has exactly 1 email:
    - `to` = `["pos@example.com"]`.
    - `subject` = `3 new restaurants in Brevard - week of Sep 7, 2026`.
    - `html` contains `Banana River Bagels`, `Indian River Pho` and `Viera Noodle Bar`, and `Application in progress` 3 times.
+   - `html` contains `Phone: 321-555-0302` and `Email: bagels@example.com`.
    - There's one attachment, `leads-2026-09-07.csv`, with the §1.5 header and 3 rows, all `Applied`.
 5. Clock `2026-09-28T12:00:00Z` and run `import-weekly` with `weekly_w1`. Then clock `2026-10-05T10:00:00Z` and run `import-weekly` with `weekly_w2`.
 6. Clock `2026-10-05T11:00:00Z`, then run `send-digests-weekly`. That's 1 new email (2 in total). The second email:
@@ -344,18 +380,18 @@ If this test passes, the business works: early, restaurant-specific, no duplicat
 - `leads_created` = 0.
 - The outbox subject is `[OpeningSoon FL] Source problem: dbpr_weekly - columns changed`.
 
-**E2E-28 @stage5 staleness and run history (H3).** Clock `2026-09-28T12:00:00Z` and run `import-weekly` with `weekly_w1` 12 times. Clock `2026-09-29T12:00:00Z` and run `scrape-pending` with `pending_0901`. After login, on `/sources`:
+**E2E-28 @stage5 staleness and run history (H3).** Clock `2026-09-28T12:00:00Z` and run `import-weekly` with `weekly_w1` 12 times. Clock `2026-09-29T12:00:00Z` and run `import-plan-review` with `plan_review_0901.csv`. After login, on `/sources`:
 - `dbpr_weekly` is `green` and shows exactly 10 `run-row`s.
-- Clock `2026-10-06T12:00:00Z` and run `check-health`. `dbpr_weekly` is still `green` (exactly 8 days old), `dbpr_pending` is `amber`, and `alerts_sent: 1` with the subject `[OpeningSoon FL] Source problem: dbpr_pending - stale`.
+- Clock `2026-10-06T12:00:00Z` and run `check-health`. `dbpr_weekly` is still `green` (exactly 8 days old), `dbpr_plan_review` is `amber`, and `alerts_sent: 1` with the subject `[OpeningSoon FL] Source problem: dbpr_plan_review - stale`.
 - Clock `2026-10-07T12:00:00Z` and run `check-health`. `dbpr_weekly` is `amber`, and `alerts_sent: 1` (only the newly stale source). A third `check-health` at the same clock gives `alerts_sent: 0`.
 
-**E2E-29 @stage5 manual upload fallback (I7).** Log in and open `/sources`. Upload `fixtures/dbpr_weekly/weekly_w1.csv` through `source-upload-file` and click `source-upload-submit`.
-- `upload-result` reads `6 rows, 4 new leads`.
+**E2E-29 @stage5 manual upload fallback (I7).** Log in and open `/sources`. Upload `fixtures/dbpr_weekly/weekly_w1/newfood.csv` through `source-upload-file` and click `source-upload-submit`.
+- `upload-result` reads `5 rows, 3 new leads` (newfood only: SALT & SMOKE BBQ, COASTAL TACOS, SPACECOAST WAFFLES).
 - `/test/runs[0]` has `source: "dbpr_weekly"` and `trigger: "manual"`.
 
 **E2E-30 @stage5 schedule wiring (E1, E2, Scheduling).** Clock `2026-10-05T09:30:00Z` (Monday 05:30 ET). `/test/schedule` returns:
 - `import-weekly` → `2026-10-05T10:00:00Z`
-- `scrape-pending` → `2026-10-06T09:00:00Z`
+- `import-plan-review` → `2026-10-06T09:00:00Z`
 - `send-digests-daily` → `2026-10-05T11:00:00Z`
 - `send-digests-weekly` → `2026-10-05T11:00:00Z`
 - `check-health` → `2026-10-05T09:45:00Z`
@@ -364,13 +400,13 @@ Clock `2026-10-06T12:00:00Z`. `send-digests-weekly` → `2026-10-12T11:00:00Z`.
 
 ## 3. Smoke suite — live DBPR (manual only)
 
-These are skipped unless `RUN_SMOKE=1`. They run against a dev server with `SOURCE_MODE=live` and `SCRAPE_MAX_PAGES=1`, with no reset between steps. Assertions are loose. Each one stays polite (I5).
+These are skipped unless `RUN_SMOKE=1`. They run against a dev server with `SOURCE_MODE=live`, with no reset between steps. Assertions are loose. Each one stays polite (I5): at most 3 file downloads per run.
 
-**SMOKE-1 @smoke live weekly import.** `uv run osfl import-weekly --county brevard` → exit 0. The latest `source_runs` row has `status` `ok` and `rows_fetched` > 0.
+**SMOKE-1 @smoke live licence import.** `uv run osfl import-weekly --county brevard` → exit 0. The latest `source_runs` row has `status` `ok` and `rows_fetched` > 0, and at least one Brevard raw record is stored.
 
-**SMOKE-2 @smoke live header unchanged.** The live weekly file's header equals the header of `weekly_real_sample.csv`.
+**SMOKE-2 @smoke live headers unchanged.** The live headers of `newfood.csv`, `chgownr_food.csv` and `HR_plan_review.csv` equal those in `fixtures/headers/`.
 
-**SMOKE-3 @smoke live pending scrape.** `uv run osfl scrape-pending --county brevard` → exit 0, with `status` `ok` (zero rows is acceptable) and no parser exceptions in `logs/`.
+**SMOKE-3 @smoke live plan-review import.** `uv run osfl import-plan-review --county brevard` → exit 0, with `status` `ok` and at least one Brevard lead in stage Applied.
 
 **SMOKE-4 @smoke real email.** This runs only if `RESEND_API_KEY` and `EMAIL_FROM` are set. With `EMAIL_MODE=resend`, a test digest sent to `OPERATOR_EMAIL` returns a Resend message id.
 
@@ -381,8 +417,9 @@ These are skipped unless `RUN_SMOKE=1`. They run against a dev server with `SOUR
 | UT-01 | `normalise_name` | `Indian River Pho LLC` → `INDIAN RIVER PHO`. `Salt & Smoke BBQ, L.L.C.` → `SALT AND SMOKE BBQ`. `Coastal Tacos Inc` → `COASTAL TACOS` |
 | UT-02 | `normalise_address` | `2235 N. Courtenay Parkway` → `2235 N COURTENAY PKWY`. `1980 N Atlantic Ave Suite 101` → `1980 N ATLANTIC AVE STE 101`. `210 West Cocoa Beach Causeway` → `210 W COCOA BEACH CSWY` |
 | UT-03 | `lead_key` | P-1 and W2-1 give the same key. W1-1 and the same row with ZIP 32901 give different keys |
-| UT-04 | `classify` | Each of W1-1…W1-6 → new, new, ownership_change, mobile, ignored(renewal), new (the Brevard filter is separate) |
-| UT-05 | Live fetcher politeness | With a fake transport and a fake sleep: requests are spaced ≥ `SCRAPE_MIN_INTERVAL_S`, the `User-Agent` equals `SCRAPER_USER_AGENT`, and a 500 is retried 3 times with growing delays, then raises `FetchError` |
+| UT-09 | `licence_digits` | `SEA1590010` → `1590010`. `1590010` → `1590010`. Empty → `None`. The matcher prefers a licence-digit match over `lead_key` |
+| UT-04 | `classify` | W1-1…W1-6 → new, new, ownership_change, mobile, ignored (VEND), new (the county filter is separate). W2-3 → ignored (CATR). Plan-review transactions: `1034/Plan Review and Initial (COMBO SEAT)` → new. `1034/Plan Review and Initial (COMBO)` → new. `1030/Initial Plan Review` → new. `1036/Plan Review and Initial (COMBO MFDV)` → mobile. `1030/Initial Hot Dog Plan Review` → mobile. `3021/Request to Change Owner (MFDV)` → ownership_change. `3027/Request Plan Review` → ignored |
+| UT-05 | Live fetcher politeness | With a fake transport and a fake sleep: requests are spaced ≥ `FETCH_MIN_INTERVAL_S`, the `User-Agent` equals `FETCH_USER_AGENT`, and a 500 is retried 3 times with growing delays, then raises `FetchError` |
 | UT-06 | `digest_period` | `2026-09-07T11:00Z` weekly → `2026-W37`. `2026-09-13T23:59-04:00` weekly → `2026-W37`. Daily `2026-09-29T03:59Z` → `2026-09-28` (still the 28th in ET) |
 | UT-07 | `health_status` | The red, amber and green rules in §1.5, including "no runs → amber" and "exactly 8 days → green" |
 | UT-08 | `days_ahead` | Applied 2026-09-01 + Licensed 2026-09-29 → 28. Licensed only → 0. Applied only → `None` |

@@ -28,7 +28,7 @@ Phase 0: Preflight (fix what you can, ask only if blocked)
 Phase 1: Plan (then continue without waiting)
 - Summarise the build in under 20 lines:
   - the stages
-  - the fetcher/parser split and FixtureFetcher
+  - the fetcher/parser split and FixtureFetcher for the three DBPR CSVs
   - how lead_key matching and first_seen work
   - how you'll verify each stage with pytest-playwright and the
     `playwright-headless` MCP server
@@ -41,11 +41,9 @@ Phase 2: Tests first (stage 0)
   filter), docker-compose.yml (Postgres on 127.0.0.1:55432) and docker-compose.test.yml,
   the osfl_test and osfl_walk databases, every /test/* route, and the live_server fixture
   exactly as E2E_TESTS.md §1.2 describes.
-- Do the DBPR capture spike (E2E_TESTS.md §1.4). Be polite: one request at a time,
-  at least 2 s apart. Save the trimmed real samples, then build every canonical fixture
-  in the real format. Record URLs, columns and the search flow in DECISIONS.md.
-  If the licence search can't list Brevard in-progress applications without a login
-  or CAPTCHA, stop and ask.
+- Finish the DBPR fixtures (E2E_TESTS.md §1.4). The spike already found the sources
+  (DECISIONS.md D1) and saved the raw downloads in logs/spike/. Build the trimmed real
+  samples and every canonical fixture from the real headers. Don't re-download.
 - Write EVERY scenario in docs/E2E_TESTS.md as a spec in e2e/, marked by stage, plus
   the @smoke specs and the unit tests in §4. Use the data-testid contract exactly. Writing
   the specs in a parallel subagent from the contract worked well on the last build.
@@ -88,6 +86,6 @@ Phase 4: Final acceptance
 
 - **Resume after a break:** `Read CLAUDE.md, docs/VERIFICATION.md and docs/DECISIONS.md, find the last completed stage, and continue from the next one.`
 - **Re-verify the core promise:** `Reset the walkthrough DB and walk E2E-19 and E2E-21 through the playwright-headless MCP server. Report each step and paste the subject lines from /test/outbox.`
-- **This week's sheet:** `Run osfl import-weekly and osfl scrape-pending against live DBPR for Brevard, then export-csv for the last 7 days to exports/. Tell me the counts by stage and lead type.`
+- **This week's sheet:** `Run osfl import-weekly and osfl import-plan-review against live DBPR for Brevard, then export-csv for the last 7 days to exports/. Tell me the counts by stage and lead type.`
 - **Live smoke:** `Start a dev server with SOURCE_MODE=live, run RUN_SMOKE=1 uv run pytest e2e -m smoke, and report the results.`
-- **Scraper broke:** `The dbpr_pending source is red. Capture one fresh results page politely, diff it against fixtures/dbpr_search/pending_real_sample, fix the parser, refresh the fixtures, and re-run stage 2 + E2E-19.`
+- **Source broke:** `A DBPR source is red. Download that one file once, diff its header against fixtures/headers/, fix the parser, refresh the fixtures, and re-run stages 1-2 + E2E-19.`

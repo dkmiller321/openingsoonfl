@@ -19,7 +19,7 @@ The scaffolding pattern to copy is the user's repo at `C:\Users\dkmil\vscode-wor
 | Settings | pydantic-settings, read once in `osfl/settings.py` |
 | Database | PostgreSQL 16, SQLAlchemy 2 **sync** engine (FastAPI runs sync routes in its threadpool), psycopg 3, Alembic |
 | Jobs | APScheduler (in-process, `America/New_York`) |
-| Fetching | httpx (weekly CSV), Playwright for Python (licence search) |
+| Fetching | httpx for all three DBPR CSV downloads. No scraping. Playwright is for tests only |
 | Email | Resend HTTP API via httpx (`EMAIL_MODE=resend`), or the `outbox` table (`EMAIL_MODE=outbox`) |
 | Auth | Starlette `SessionMiddleware` + `itsdangerous`, single password |
 | CLI | Typer, entry point `osfl` |
@@ -35,7 +35,7 @@ Don't use async SQLAlchemy: psycopg async doesn't run on Windows' default event 
 - **Tests first.** In stage 0, write every scenario in `docs/E2E_TESTS.md` as a spec, plus every unit test in §4. Specs may fail until their stage; they may never be weakened to pass. If a scenario is wrong, say so and propose the change. Never silently edit an assertion, a testid, a fixture row or an exact string from §1.5.
 - **Nothing is done until it has run.** For every claim that something works, state the command you ran and what you observed.
 - **No network in tests.** `SOURCE_MODE=fixture` and `EMAIL_MODE=outbox` for everything except `@smoke`. Fixtures replace only the fetcher. Parser, classifier, matcher and run bookkeeping always run for real.
-- **Be polite to government sites.** Even in the spike: one request at a time, at least 2 s apart, with `SCRAPER_USER_AGENT`. Never hammer DBPR to debug a parser. Debug against the saved fixture instead.
+- **Be polite to government sites.** One request at a time, at least 2 s apart, with `FETCH_USER_AGENT`. Never re-download DBPR files to debug a parser. Debug against the saved fixture instead.
 - **Selectors are a contract.** Use the `data-testid` values in E2E_TESTS.md §1.6 exactly.
 - **One clock.** Every "now" goes through `osfl.clock.now()`, which honours `FAKE_NOW` / `POST /test/clock`. Never call `datetime.now()` elsewhere.
 - **Respect the non-goals.** No vendor logins, no billing, no Sunbiz, permits or liquor adapters, no enrichment APIs, no extra counties ingested.
@@ -79,7 +79,6 @@ For each stage:
 
 Stop and ask when:
 
-- the stage 0 spike shows the licence search can't list Brevard in-progress applications without a login or CAPTCHA,
 - a change would alter the PRD's scope, a test assertion, a testid, a fixture row or an exact string in E2E_TESTS.md §1.5,
 - a dependency outside the approved list seems necessary,
 - the same failure survives three genuine fix attempts.
@@ -92,7 +91,7 @@ Otherwise decide, record the decision in `docs/DECISIONS.md` (date, decision, wh
 2. Run `BASE_URL=http://127.0.0.1:8000 uv run pytest e2e -m "not smoke"`. Everything must pass. Run it three times and record any flaky spec (the target is 0).
 3. Walk every P0 scenario through `playwright-headless` against the container, with E2E-19 last.
 4. Bring the stack up without the test override (`docker compose up -d --build`, `SCHEDULER_ENABLED=1`). Check that `/test/reset` returns 404 and the scheduler logs its 5 jobs with their next run times.
-5. Start a dev server with `SOURCE_MODE=live` and run `RUN_SMOKE=1 uv run pytest e2e -m smoke`. Report the results, including how many Brevard records the live file had. SMOKE-4 runs only if `RESEND_API_KEY` is set.
+5. Start a dev server with `SOURCE_MODE=live` and run `RUN_SMOKE=1 uv run pytest e2e -m smoke`. Report the results, including how many Brevard leads each live file produced. SMOKE-4 runs only if `RESEND_API_KEY` is set.
 6. Write `docs/DEPLOY.md`. It covers:
    - VPS prerequisites
    - `.env` for production
