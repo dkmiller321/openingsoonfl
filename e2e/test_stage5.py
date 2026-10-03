@@ -98,7 +98,7 @@ def test_e2e_30_schedule_wiring(api: httpx.Client) -> None:
         "import-plan-review": "2026-10-06T09:00:00Z",
         "send-digests-daily": "2026-10-05T11:00:00Z",
         "send-digests-weekly": "2026-10-05T11:00:00Z",
-        "check-health": "2026-10-05T09:45:00Z",
+        "check-health": "2026-10-05T10:15:00Z",
     }
     set_clock(api, "2026-10-06T12:00:00Z")
     schedule = {row["job"]: row["next_run"] for row in api.get("/test/schedule").json()}

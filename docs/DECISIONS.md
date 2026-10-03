@@ -26,3 +26,16 @@ Claude Code appends one entry per decision it makes without asking: date, decisi
 
 ### D6 · 2026-10-03 · Git identity
 - No global `user.name`; set repo-local `Donald Miller <dkmills321@gmail.com>`, matching LaunchLedger.
+
+### D7 · 2026-10-03 · E2E-30 expected check-health time corrected (user decision)
+- §1.5 schedules `check-health` hourly at :15 ET, but E2E-30 expected `2026-10-05T09:45:00Z` (05:45 ET) after 05:30 ET. Asked the user; answer: "Fix the assertion to 10:15Z (Recommended)". Spec and E2E_TESTS.md now expect `2026-10-05T10:15:00Z`.
+
+### D8 · 2026-10-03 · Lead identities live in `lead_keys`
+- PRD lists `leads.lead_key` (kept, unique). A lead can be known by several identities (`LIC:<digits>` from any licence or plan review, `K:<name|address|zip>` per spelling), so `lead_keys(key -> lead_id)` stores them all. Licence digits win over name/address when both match different leads. Needed for E2E-09b (misspelt address, same licence number).
+
+### D9 · 2026-10-03 · Small behaviours the contract left open
+- Login always lands on `/` (E2E-12), so there is no `next=` redirect.
+- A custom display name (L5) overrides the record name everywhere, including digests and CSVs.
+- Digest emails go out inside the transaction that records deliveries; if sending raises, the deliveries roll back. In outbox mode the email row commits in its own transaction.
+- Unsubscribe is a GET (as E2E-23 requires). Mail scanners that prefetch links could unsubscribe a vendor. Revisit with a confirm button or `List-Unsubscribe-Post` before scaling.
+- A scheduled source job in `SOURCE_MODE=fixture` (no fixture given) fails with a logged FetchError and records no run. Production must set `SOURCE_MODE=live` (docs/DEPLOY.md).

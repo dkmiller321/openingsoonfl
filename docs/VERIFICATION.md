@@ -53,3 +53,15 @@ Claude Code appends one section per stage: the stage number, every command run w
   - E2E-22: pass — "Send test to me" -> "Test sent to operator@example.com"; outbox "[TEST] 0 new restaurants in Brevard - week of Oct 5, 2026" (all leads already delivered, so 0 is right).
   - E2E-23: pass — unsubscribe link from the digest -> "You're unsubscribed from OpeningSoon FL digests."; vendor shows Inactive.
   - E2E-21, E2E-24: pytest only.
+
+### Stage 5 · 2026-10-03 · Source health, schedule
+- First run of `uv run pytest e2e -m stage5 -q` -> 5 passed, 1 failed: E2E-30 expected check-health at 09:45Z, but §1.5 says ":15". Asked the user, who approved fixing the assertion to 10:15Z (DECISIONS D7). After: 6 passed.
+- `uv run ruff check .` -> All checks passed; `uv run pytest tests -q` -> 31 passed.
+- `uv run pytest e2e -m "not smoke" -q` -> 32 passed; second run -> 32 passed.
+- MCP walkthrough (port 8002, restarted on current code):
+  - E2E-26: pass — weekly_w1 then weekly_empty -> alert "[OpeningSoon FL] Source problem: dbpr_weekly - zero rows"; /sources shows dbpr_weekly red with the "zero rows" run. Screenshot `logs/walk-stage5-sources-red.png`.
+  - E2E-29: pass — uploaded weekly_w2/newfood.csv through the file chooser -> "3 rows, 1 new leads" (Indian River Pho merged, the caterer ignored); dbpr_weekly back to green after the good run.
+  - E2E-28: pass — `check-health` at 2026-10-07T03:00Z -> plan review amber, 1 alert; at 2026-10-14 -> weekly amber too, 1 alert; repeat -> 0 alerts.
+  - E2E-30: pass — `/test/schedule` at 2026-10-14T12:00Z -> check-health 12:15Z, weekly digest Monday 2026-10-19T11:00Z.
+  - E2E-19 (re-walked): pass — vendor created in the UI; "3 new restaurants in Brevard - week of Sep 7, 2026" includes Indian River Pho; "5 new restaurants in Brevard - week of Oct 5, 2026" doesn't; delivered 2026-09-07.
+  - E2E-25, E2E-27: pytest only.

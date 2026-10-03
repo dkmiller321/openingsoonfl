@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Sources · OpeningSoon FL{% endblock %}
+{% block content %}
+<h1>Sources</h1>
+<p class="sub">Red: the last run failed, saw changed columns, or fetched nothing. Amber: no good run lately.</p>
+
+{% for f in flashes %}
+  {% if f.kind == 'upload' %}<div class="notice ok" data-testid="upload-result">{{ f.message }}</div>
+  {% elif f.kind == 'upload-error' %}<div class="notice error" data-testid="upload-result">{{ f.message }}</div>{% endif %}
+{% endfor %}
+
+{% for s in sources %}
+<div class="card" data-testid="source-row" data-source="{{ s.key }}" data-status="{{ s.status }}" style="margin-bottom:18px">
+  <div class="toolbar">
+    <div>
+      <h2 style="margin:0"><span class="dot {{ s.status }}"></span>{{ s.label }}</h2>
+      <div class="muted small">{{ s.key }} · {{ s.status }}</div>
+    </div>
+  </div>
+  {% if s.runs %}
+  <table>
+    <thead><tr><th>Started (UTC)</th><th>Trigger</th><th>Status</th><th>Fetched</th><th>New</th><th>Leads +/~</th><th>Problem</th></tr></thead>
+    <tbody>
+    {% for r in s.runs %}
+      <tr data-testid="run-row">
+        <td>{{ r.started_at.strftime("%Y-%m-%d %H:%M") }}</td>
+        <td>{{ r.trigger }}</td>
+        <td>{{ r.status }}</td>
+        <td>{{ r.rows_fetched }}</td>
+        <td>{{ r.rows_new }}</td>
+        <td>{{ r.leads_created }} / {{ r.leads_updated }}</td>
+        <td class="small">{% if r.problem %}<strong>{{ r.problem }}</strong>{% endif %}{% if r.error %}<div class="muted">{{ r.error }}</div>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No runs yet.</p>
+  {% endif %}
+</div>
+{% endfor %}
+
+<h2>Manual upload</h2>
+<p class="muted small">If DBPR is down, download the file another way and upload it here. It runs through the same import.</p>
+<form method="post" action="/sources/upload" enctype="multipart/form-data" class="card filters">
+  <select name="kind" aria-label="File type">
+    {% for key, (source, label) in kinds.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+  </select>
+  <input type="file" name="file" accept=".csv" data-testid="source-upload-file" required>
+  <button class="btn" data-testid="source-upload-submit" type="submit">Upload</button>
+</form>
+{% endblock %}

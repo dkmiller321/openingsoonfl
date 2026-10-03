@@ -48,6 +48,15 @@ N. **[tag] One-line summary.** What happened.
    - *Cost:* one re-walk.
    - *Kit change:* in E2E_TESTS.md section 5, say "restart the walkthrough server after any code change, before walking".
 
+### 2026-10-03 · Stage 5
+
+8. **[contract] E2E-30's expected `check-health` time (09:45Z = 05:45 ET) contradicted §1.5 ("hourly at :15").** The kit author miscalculated.
+   - *Cost:* one stop-and-ask; assertion corrected to 10:15Z (DECISIONS D7).
+   - *Kit change:* compute every expected timestamp in E2E_TESTS.md with a script while writing the kit, especially across timezones.
+
+9. **[process] Worked well, keep:** writing all 32 specs plus unit tests in stage 0 from the testid contract meant stages 2-4 passed on their first runs. The single `run_source` function shared by CLI, scheduler, upload and `/test/run` made failure paths (E2E-10, -25..27) pass with no extra code.
+   - *Kit change:* keep "one function per job" and the pinned fixture tables.
+
 ## Sending this log to KitForge (final acceptance step 8)
 
 Send exactly one report. Each log entry becomes one `corrections` item (`text` = the entry with its tag, cost and kit change; `quote` = the user's own words if the user corrected you, else omit it). Use the final test totals.

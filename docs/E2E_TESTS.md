@@ -394,7 +394,7 @@ If this test passes, the business works: early, restaurant-specific, no duplicat
 - `import-plan-review` → `2026-10-06T09:00:00Z`
 - `send-digests-daily` → `2026-10-05T11:00:00Z`
 - `send-digests-weekly` → `2026-10-05T11:00:00Z`
-- `check-health` → `2026-10-05T09:45:00Z`
+- `check-health` → `2026-10-05T10:15:00Z` (06:15 ET; corrected 2026-10-03, DECISIONS D7)
 
 Clock `2026-10-06T12:00:00Z`. `send-digests-weekly` → `2026-10-12T11:00:00Z`.
 
