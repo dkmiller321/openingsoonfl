@@ -7,62 +7,41 @@ One small Linux VPS runs everything: the app container (web admin, imports, dige
 - A VPS with 1 vCPU, 1–2 GB RAM and 20 GB disk (Ubuntu 24.04 LTS), for example Hetzner CX22, DigitalOcean Basic or Vultr.
 - A domain, with an `A` record for the admin host pointing at the VPS (for example `app.openingsoonfl.com`).
 - A sending domain verified in Resend (section 5).
-- On the VPS, as a sudo user:
+- GitHub access from the server for the private repo: a read-only deploy key (repo, then Settings, then Deploy keys), or clone over HTTPS with a token.
+
+## 2. One-script setup
+
+Copy `deploy/bootstrap.sh` to the server, then run:
 
 ```bash
-sudo apt update && sudo apt install -y docker.io docker-compose-v2 git caddy
-sudo usermod -aG docker $USER   # log out and back in
-git clone <your repo url> openingsoonfl && cd openingsoonfl
+bash bootstrap.sh git@github.com:dkmiller321/openingsoonfl.git
 ```
 
-## 2. Production `.env`
+- **First run:** it installs Docker and a firewall (SSH, 80, 443), clones the repo, and creates `.env` from `deploy/env.production.example` with a generated database password and session secret. Then it stops so you can fill the blanks:
 
-Copy `.env.example` to `.env` and change these values. Leave the rest at their defaults.
+  | Variable | Value |
+  |---|---|
+  | `DOMAIN`, `APP_BASE_URL` | Your admin host, for example `app.openingsoonfl.com` and `https://app.openingsoonfl.com` |
+  | `ADMIN_PASSWORD` | A long random password (the only login) |
+  | `OPERATOR_EMAIL`, `OPERATOR_POSTAL_ADDRESS` | Alerts and test sends; your real mailing address for the CAN-SPAM footer |
+  | `RESEND_API_KEY`, `EMAIL_FROM` | From Resend, on the verified domain |
+  | `MAPBOX_TOKEN` | Optional, for Mapbox basemaps |
+  | `FETCH_USER_AGENT` | Include a real contact email |
 
-| Variable | Production value |
-|---|---|
-| `POSTGRES_PASSWORD` | A long random string. Also put it into `DATABASE_URL` (Compose overrides the host to `postgres`) |
-| `ADMIN_PASSWORD` | A long random password. It's the only login |
-| `SESSION_SECRET` | `python3 -c "import secrets; print(secrets.token_urlsafe(32))"` |
-| `OPERATOR_EMAIL` | Where alerts and test digests go |
-| `OPERATOR_POSTAL_ADDRESS` | Your real mailing address (CAN-SPAM requires it in every digest) |
-| `APP_BASE_URL` | `https://app.openingsoonfl.com` (used in unsubscribe links, and switches on secure cookies) |
-| `SOURCE_MODE` | `live` |
-| `FETCH_USER_AGENT` | `OpeningSoonFL/1.0 (+mailto:you@yourdomain.com)` |
-| `EMAIL_MODE` | `resend` |
-| `RESEND_API_KEY` | From resend.com, API Keys (sending access only) |
-| `EMAIL_FROM` | `OpeningSoon FL <leads@yourdomain.com>`, on the verified domain |
-| `SCHEDULER_ENABLED` | `1` |
-| `TEST_ROUTES` | `0` (never `1` in production) |
-| `APP_HOST_PORT` | `8010` (Caddy proxies to it; it stays bound to 127.0.0.1) |
-| `MAX_VENDORS_PER_CATEGORY` | Your exclusivity promise, for example `3` |
+- **Second run:** it starts the stack (`docker-compose.yml` + `docker-compose.prod.yml`: app, Postgres, Caddy with automatic HTTPS, scheduler on, test routes off) and adds the nightly backup.
 
-Then start it:
+The first data load (afterwards the scheduler takes over daily):
 
 ```bash
-docker compose up -d --build
-curl -s http://127.0.0.1:8010/health          # {"status":"ok","db":"ok"}
-curl -s -o /dev/null -w '%{http_code}\n' -X POST http://127.0.0.1:8010/test/reset   # 404
+sudo docker compose exec app osfl import-plan-review --county brevard
+sudo docker compose exec app osfl import-weekly --county brevard
 ```
 
-Migrations run automatically when the container starts (`scripts/entrypoint.sh`).
+Check `https://<DOMAIN>/health` → `{"status":"ok","db":"ok"}`, and that `POST /test/reset` returns 404.
 
-## 3. Caddy reverse proxy with HTTPS
+## 3. HTTPS
 
-`/etc/caddy/Caddyfile`:
-
-```
-app.openingsoonfl.com {
-    encode gzip
-    reverse_proxy 127.0.0.1:8010
-}
-```
-
-```bash
-sudo systemctl reload caddy
-```
-
-Caddy gets and renews the TLS certificate automatically. Then open `https://app.openingsoonfl.com/login`.
+Caddy runs as a Compose service (`deploy/Caddyfile`) and gets and renews the Let's Encrypt certificate for `DOMAIN` by itself. It also sets HSTS, nosniff and referrer-policy headers. Nothing to install on the host.
 
 ## 4. Backups (`pg_dump` cron)
 
@@ -108,5 +87,5 @@ The scheduler runs inside the app container with these jobs, all in ET:
 ## 7. Updating
 
 ```bash
-git pull && docker compose up -d --build
+git pull && sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
