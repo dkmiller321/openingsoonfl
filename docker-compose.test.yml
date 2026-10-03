@@ -1,0 +1,15 @@
+# Test override: docker compose -f docker-compose.yml -f docker-compose.test.yml up -d --build
+# Same settings as the e2e live_server (docs/E2E_TESTS.md section 1.2), on the Compose app port.
+services:
+  app:
+    environment:
+      TEST_ROUTES: "1"
+      SOURCE_MODE: fixture
+      EMAIL_MODE: outbox
+      SCHEDULER_ENABLED: "0"
+      ADMIN_PASSWORD: test-admin-pw
+      MAX_VENDORS_PER_CATEGORY: "2"
+      OPERATOR_EMAIL: operator@example.com
+      OPERATOR_POSTAL_ADDRESS: "OpeningSoon FL, PO Box 1000, Melbourne, FL 32901"
+      APP_BASE_URL: http://127.0.0.1:${APP_HOST_PORT:-8010}
+      FAKE_NOW: ""

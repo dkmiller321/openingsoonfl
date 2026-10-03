@@ -1,0 +1,8 @@
+{
+  "weekly_partial_error": {
+    "chgownr_food.csv": "chgownr_food.csv: HTTP 500"
+  },
+  "weekly_unavailable": {
+    "newfood.csv": "newfood.csv: HTTP 503"
+  }
+}

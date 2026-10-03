@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}OpeningSoon FL{% endblock %}</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/htmx.min.js" defer></script>
+</head>
+<body>
+  {% if logged_in %}
+  <header class="topbar">
+    <a class="brand" href="/">OpeningSoon FL</a>
+    <nav class="nav">
+      <a data-testid="nav-dashboard" href="/" class="{{ 'active' if active == 'dashboard' }}">Dashboard</a>
+      <a data-testid="nav-leads" href="/leads" class="{{ 'active' if active == 'leads' }}">Leads</a>
+      <a data-testid="nav-vendors" href="/vendors" class="{{ 'active' if active == 'vendors' }}">Vendors</a>
+      <a data-testid="nav-sources" href="/sources" class="{{ 'active' if active == 'sources' }}">Sources</a>
+    </nav>
+    <form method="post" action="/logout"><button class="btn link" data-testid="logout" type="submit">Log out</button></form>
+  </header>
+  {% endif %}
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
