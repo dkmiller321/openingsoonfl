@@ -99,6 +99,7 @@ class LeadEvent(Base):
     source: Mapped[str] = mapped_column(String(40))
     stage: Mapped[str] = mapped_column(String(20))
     event_date: Mapped[date] = mapped_column(Date)
+    fields: Mapped[dict[str, Any]] = mapped_column(JSONType)
 
 
 class Category(Base):

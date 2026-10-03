@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 [project.scripts]
-osfl = "osfl.cli:app"
+osfl = "osfl.cli:main"
 
 [dependency-groups]
 dev = [
