@@ -30,3 +30,16 @@ Claude Code appends one section per stage: the stage number, every command run w
   - E2E-07: pass — BANANA RIVER BAGELS Applied, 321-555-0302, bagels@example.com; VIERA NOODLE BAR email empty.
   - E2E-08: pass — 8 leads; INDIAN RIVER PHO Licensed, first 2026-09-01, licensed 2026-09-29, 28 days ahead, phone 321-555-0201, email owner@indianriverpho.example, events Applied@2026-09-01, Licensed@2026-09-29.
   - E2E-09/09b/10/11: pytest only (no UI).
+
+### Stage 3 · 2026-10-03 · Admin console
+- `uv run ruff check .` -> All checks passed. `uv run pytest tests -q` -> 31 passed.
+- `uv run pytest e2e -m stage3 -q` -> 7 passed on the first run.
+- `uv run pytest e2e -m "not smoke and (stage0 or ... or stage3)" -q` -> 20 passed, then **1 failed** (E2E-16, "Active" after unticking): flaky 2 of 4 runs. Cause: FastAPI 0.142 runs `yield` dependency teardown (our commit) *after* the response is sent by default, so the redirect's GET could read the old row. Fix: `DbSession = Annotated[Session, Depends(get_session, scope="function")]`. After: E2E-16 8/8; stages 0-3 -> 20 passed, twice.
+- MCP walkthrough (port 8002, standard dataset, then weekly_w2):
+  - E2E-12: pass — /leads redirected to /login; "wrong" -> "Wrong password" (401); correct password -> dashboard.
+  - E2E-13: pass — stats 4 / 3 / 0; dbpr_weekly green, dbpr_plan_review amber.
+  - E2E-14: pass — filter Applied -> 3 rows (Banana River Bagels, Indian River Pho LLC, Viera Noodle Bar), lead time "—"; URL keeps `stage=Applied`. Screenshot `logs/walk-stage3-leads-applied.png`.
+  - E2E-15: pass — INDIAN RIVER PHO: Licensed, "28 days ahead", timeline Sep 1 (plan review) / Sep 29 (licensed), two raw records, contact 321-555-0201 / owner@indianriverpho.example / INDIAN RIVER PHO LLC. Screenshot `logs/walk-stage3-lead-detail.png`. Polish found here: raw records now list columns in DBPR's header order (JSONB had reordered them).
+  - E2E-16: pass — "not-an-email" -> "Enter valid email addresses" (422); Space Coast POS created, Active, POS, Brevard, Weekly.
+  - E2E-17: pass — `/leads.csv?stage=Applied` -> `leads-2026-10-05.csv` (clock date), §1.5 header, Applied rows only with empty days_ahead.
+  - E2E-18: first attempt hit a 500 because the walk server was still running pre-change Python with the updated template (my change mid-walk, not an app bug). After restart: pass — display name "Viera Noodle Bar & Grill", note saved, Hide -> Unhide button, list shows "6 leads".

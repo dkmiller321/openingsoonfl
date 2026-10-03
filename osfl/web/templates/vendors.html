@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Vendors · OpeningSoon FL{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <div>
+    <h1>Vendors</h1>
+    <p class="sub">Who gets the digest, for which counties, how often.</p>
+  </div>
+  <a class="btn" data-testid="vendor-new" href="/vendors/new">New vendor</a>
+</div>
+
+{% for f in flashes %}
+  {% if f.kind == 'cap' %}<div class="notice warn" data-testid="vendor-cap-warning">{{ f.message }}</div>
+  {% else %}<div class="notice {{ f.kind }}">{{ f.message }}</div>{% endif %}
+{% endfor %}
+
+{% if vendors %}
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Vendor</th><th>Category</th><th>Counties</th><th>Cadence</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for v, category in vendors %}
+      <tr data-testid="vendor-row" data-vendor-id="{{ v.id }}">
+        <td><strong>{{ v.name }}</strong><div class="muted small">{{ v.emails|join(', ') }}</div></td>
+        <td>{{ category }}</td>
+        <td>{{ v.counties|map('title')|join(', ') }}</td>
+        <td>{{ v.cadence|title }}</td>
+        <td data-testid="vendor-status">{{ 'Active' if v.active else 'Inactive' }}</td>
+        <td style="text-align:right; white-space:nowrap">
+          <a class="btn secondary small" data-testid="digest-preview-link" href="/vendors/{{ v.id }}/digest/preview">Preview digest</a>
+          <a class="btn secondary small" href="/vendors/{{ v.id }}">Edit</a>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card muted">No vendors yet.</div>
+{% endif %}
+{% endblock %}

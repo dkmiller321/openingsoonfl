@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit vendor' if vendor_id else 'New vendor' }} · OpeningSoon FL{% endblock %}
+{% block content %}
+<p class="small"><a href="/vendors">&larr; Vendors</a></p>
+<h1>{{ 'Edit vendor' if vendor_id else 'New vendor' }}</h1>
+<p class="sub">Vendors receive the digest by email. They never log in.</p>
+
+{% if error %}<div class="notice error" data-testid="vendor-error">{{ error }}</div>{% endif %}
+
+<form method="post" action="{{ '/vendors/%d' % vendor_id if vendor_id else '/vendors/new' }}" class="card" style="max-width:560px">
+  <div class="field">
+    <label for="name">Name</label>
+    <input id="name" type="text" name="name" data-testid="vendor-name" value="{{ v.name }}">
+  </div>
+  <div class="field">
+    <label for="emails">Emails (comma-separated)</label>
+    <input id="emails" type="text" name="emails" data-testid="vendor-emails" value="{{ v.emails }}">
+  </div>
+  <div class="field">
+    <label for="category">Category</label>
+    <select id="category" name="category_id" data-testid="vendor-category">
+      {% for c in categories %}<option value="{{ c.id }}" {{ 'selected' if v.category_id == c.id }}>{{ c.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label>Counties</label>
+    {% for county in counties %}
+    <label class="check"><input type="checkbox" name="counties" value="{{ county }}" data-testid="vendor-county-{{ county }}" {{ 'checked' if county in v.counties }}> {{ county|title }}</label>
+    {% endfor %}
+  </div>
+  <div class="field">
+    <label for="cadence">Cadence</label>
+    <select id="cadence" name="cadence" data-testid="vendor-cadence">
+      <option value="weekly" {{ 'selected' if v.cadence == 'weekly' }}>Weekly (Monday 7:00 ET)</option>
+      <option value="daily" {{ 'selected' if v.cadence == 'daily' }}>Daily (7:00 ET)</option>
+    </select>
+  </div>
+  <div class="field">
+    <label class="check"><input type="checkbox" name="active" value="1" data-testid="vendor-active" {{ 'checked' if v.active }}> Active</label>
+  </div>
+  <button class="btn" data-testid="vendor-save" type="submit">Save</button>
+</form>
+{% endblock %}

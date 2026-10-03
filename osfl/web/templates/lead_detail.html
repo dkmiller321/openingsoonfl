@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}{{ name }} · OpeningSoon FL{% endblock %}
+{% block content %}
+<p class="small"><a href="/leads">&larr; Leads</a></p>
+<h1 data-testid="lead-detail-name">{{ name }}</h1>
+<p class="sub">
+  <span data-testid="lead-detail-type">{{ lead.lead_type|lead_type_label }}</span> ·
+  <span class="badge {{ lead.stage|lower }}" data-testid="lead-detail-stage">{{ lead.stage }}</span> ·
+  <span data-testid="lead-detail-days-ahead">{{ lead.days_ahead|days_ahead_label }}</span>
+  {% if lead.hidden %} · <strong>hidden</strong>{% endif %}
+</p>
+
+<div class="grid2">
+  <div>
+    <h2>Timeline</h2>
+    <ul class="timeline card">
+      {% for event, raw, columns in events %}
+      <li data-testid="timeline-event" data-stage="{{ event.stage }}" data-date="{{ event.event_date.isoformat() }}">
+        <span class="badge {{ event.stage|lower }}">{{ 'Plan review filed' if event.stage == 'Applied' else 'Licensed' }}</span>
+        <span>{{ event.event_date|long_date }}</span>
+        <span class="muted small">{{ event.source }} · {{ raw.file }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+
+    <h2>Source records</h2>
+    {% for event, raw, columns in events %}
+    <div class="raw" data-testid="raw-record" data-source="{{ raw.source }}">
+      <div class="muted">{{ raw.source }} · {{ raw.file }} · fetched {{ raw.fetched_at.strftime("%Y-%m-%d") }}</div>
+      <dl>
+        {% for key, value in columns if value %}
+        <dt>{{ key }}</dt><dd>{{ value }}</dd>
+        {% endfor %}
+      </dl>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div>
+    <h2>Contact</h2>
+    <div class="card">
+      <div class="field"><label>Phone</label><div data-testid="lead-detail-phone">{{ lead.phone or '—' }}</div></div>
+      <div class="field"><label>Email</label><div data-testid="lead-detail-email">{{ lead.email or '—' }}</div></div>
+      <div class="field"><label>Licensee</label><div data-testid="lead-detail-licensee">{{ lead.licensee or '—' }}</div></div>
+      <div><label>Address</label><div>{{ lead.address }}<br>{{ lead.city }}, FL {{ lead.zip }} · {{ lead.county|title }}</div></div>
+    </div>
+
+    <h2>Operator notes</h2>
+    <form method="post" action="/leads/{{ lead.id }}" class="card">
+      <div class="field">
+        <label for="display_name">Display name</label>
+        <input id="display_name" type="text" name="display_name" data-testid="lead-edit-name" value="{{ name }}">
+      </div>
+      <div class="field">
+        <label for="note">Note</label>
+        <textarea id="note" name="note" data-testid="lead-note-input">{{ lead.note or '' }}</textarea>
+      </div>
+      <button class="btn" data-testid="lead-save" type="submit">Save</button>
+    </form>
+    <form method="post" action="/leads/{{ lead.id }}/{{ 'unhide' if lead.hidden else 'hide' }}" style="margin-top:12px">
+      {% if lead.hidden %}
+      <button class="btn secondary" data-testid="lead-unhide" type="submit">Unhide lead</button>
+      {% else %}
+      <button class="btn secondary" data-testid="lead-hide" type="submit">Hide lead</button>
+      {% endif %}
+    </form>
+  </div>
+</div>
+{% endblock %}

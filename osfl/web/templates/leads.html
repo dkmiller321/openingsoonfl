@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Leads · OpeningSoon FL{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <div>
+    <h1>Leads</h1>
+    <p class="sub" data-testid="leads-count">{{ leads|length }} lead{{ '' if leads|length == 1 else 's' }}</p>
+  </div>
+  <a class="btn secondary" data-testid="export-csv" href="/leads.csv{% if export_query %}?{{ export_query }}{% endif %}">Download CSV</a>
+</div>
+
+<form method="get" action="/leads" class="filters">
+  <select name="stage" data-testid="filter-stage" aria-label="Stage">
+    {% for o in stage_options %}<option value="{{ o }}" {{ 'selected' if f.stage == o }}>{{ o }}</option>{% endfor %}
+  </select>
+  <select name="type" data-testid="filter-type" aria-label="Lead type">
+    {% for o in type_options %}<option value="{{ o }}" {{ 'selected' if f.lead_type == o }}>{{ o }}</option>{% endfor %}
+  </select>
+  <select name="county" data-testid="filter-county" aria-label="County">
+    <option value="All">All counties</option>
+    {% for c in county_options %}<option value="{{ c }}" {{ 'selected' if f.county == c }}>{{ c|title }}</option>{% endfor %}
+  </select>
+  <input type="date" name="from" data-testid="filter-from" aria-label="First seen from" value="{{ f.since or '' }}">
+  <input type="date" name="to" data-testid="filter-to" aria-label="First seen to" value="{{ f.until or '' }}">
+  <input type="search" name="q" data-testid="filter-search" placeholder="Search name or address" aria-label="Search" value="{{ f.q }}">
+  <label class="check"><input type="checkbox" name="hidden" value="1" data-testid="filter-hidden" {{ 'checked' if f.include_hidden }}> Show hidden</label>
+  <button class="btn" data-testid="filter-apply" type="submit">Apply</button>
+</form>
+
+{% if leads %}
+<div class="table-wrap">
+  <table data-testid="leads-table">
+    <thead><tr><th>Restaurant</th><th>Type</th><th>Stage</th><th>First seen</th><th>Lead time</th><th>Contact</th></tr></thead>
+    <tbody>
+    {% for lead in leads %}
+      <tr data-testid="lead-row" data-lead-id="{{ lead.id }}">
+        <td>
+          <a data-testid="lead-name" href="/leads/{{ lead.id }}">{{ display_name(lead) }}</a>
+          <div class="muted small">{{ lead.address }}, {{ lead.city }} {{ lead.zip }}{% if lead.hidden %} · hidden{% endif %}</div>
+        </td>
+        <td data-testid="lead-type">{{ lead.lead_type|lead_type_label }}</td>
+        <td data-testid="lead-stage"><span class="badge {{ lead.stage|lower }}">{{ lead.stage }}</span></td>
+        <td data-testid="lead-first-seen">{{ lead.first_seen.isoformat() }}</td>
+        <td data-testid="lead-days-ahead">{{ lead.days_ahead|days_ahead_label }}</td>
+        <td class="small">{{ lead.phone or '' }}{% if lead.email %}<div class="muted">{{ lead.email }}</div>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card muted" data-testid="leads-empty">No leads match these filters.</div>
+{% endif %}
+{% endblock %}

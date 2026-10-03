@@ -3,13 +3,12 @@
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func, select, text
-from sqlalchemy.orm import Session
 
 from osfl import clock
-from osfl.db import get_session, session_scope
+from osfl.db import DbSession, session_scope
 from osfl.models import (
     ALL_TABLES,
     Delivery,
@@ -64,7 +63,7 @@ def _iso(value: Any) -> str | None:
 
 
 @router.get("/leads")
-def leads(session: Session = Depends(get_session)) -> list[dict[str, Any]]:
+def leads(session: DbSession) -> list[dict[str, Any]]:
     out = []
     for lead in session.scalars(select(Lead).order_by(Lead.business_name, Lead.id)):
         events = session.scalars(
@@ -100,7 +99,7 @@ def leads(session: Session = Depends(get_session)) -> list[dict[str, Any]]:
 
 
 @router.get("/state")
-def state(session: Session = Depends(get_session)) -> dict[str, int]:
+def state(session: DbSession) -> dict[str, int]:
     def count(model: type) -> int:
         return session.scalar(select(func.count()).select_from(model)) or 0
 
@@ -115,7 +114,7 @@ def state(session: Session = Depends(get_session)) -> dict[str, int]:
 
 
 @router.get("/outbox")
-def outbox(session: Session = Depends(get_session)) -> list[dict[str, Any]]:
+def outbox(session: DbSession) -> list[dict[str, Any]]:
     return [
         {
             "id": m.id,
@@ -131,7 +130,7 @@ def outbox(session: Session = Depends(get_session)) -> list[dict[str, Any]]:
 
 
 @router.get("/deliveries")
-def deliveries(session: Session = Depends(get_session)) -> list[dict[str, Any]]:
+def deliveries(session: DbSession) -> list[dict[str, Any]]:
     rows = session.execute(
         select(Vendor.name, Lead, Delivery.delivered_at)
         .join(Vendor, Vendor.id == Delivery.vendor_id)
@@ -149,7 +148,7 @@ def deliveries(session: Session = Depends(get_session)) -> list[dict[str, Any]]:
 
 
 @router.get("/runs")
-def runs(session: Session = Depends(get_session)) -> list[dict[str, Any]]:
+def runs(session: DbSession) -> list[dict[str, Any]]:
     return [
         {
             "id": r.id,

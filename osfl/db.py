@@ -4,7 +4,9 @@ default event loop); FastAPI runs the sync routes in its threadpool."""
 from collections.abc import Iterator
 from contextlib import contextmanager
 from functools import lru_cache
+from typing import Annotated
 
+from fastapi import Depends
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -36,9 +38,13 @@ def session_scope() -> Iterator[Session]:
 
 
 def get_session() -> Iterator[Session]:
-    """FastAPI dependency."""
+    """FastAPI dependency. Use with `scope="function"` so the commit happens before the
+    response is sent; otherwise a redirect's follow-up GET can read stale data."""
     with session_scope() as session:
         yield session
+
+
+DbSession = Annotated[Session, Depends(get_session, scope="function")]
 
 
 def db_ok() -> bool:

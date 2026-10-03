@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · OpeningSoon FL{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+<p class="sub">Brevard restaurants before they open.</p>
+
+<div class="stats">
+  <div class="card stat">
+    <div class="label">New leads this week</div>
+    <div class="value" data-testid="stat-new-this-week">{{ new_this_week }}</div>
+  </div>
+  <div class="card stat">
+    <div class="label">Still in plan review</div>
+    <div class="value" data-testid="stat-applied">{{ applied }}</div>
+  </div>
+  <div class="card stat">
+    <div class="label">Active vendors</div>
+    <div class="value" data-testid="stat-active-vendors">{{ active_vendors }}</div>
+  </div>
+</div>
+
+<h2>Sources</h2>
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Source</th><th>Status</th><th>Last run</th><th>Rows</th></tr></thead>
+    <tbody>
+    {% for s in sources %}
+      <tr data-testid="source-last-run" data-source="{{ s.key }}" data-status="{{ s.status }}">
+        <td><a href="/sources">{{ s.label }}</a><div class="muted small">{{ s.key }}</div></td>
+        <td><span class="dot {{ s.status }}"></span>{{ s.status }}</td>
+        <td>{% if s.last %}{{ s.last.started_at.strftime("%Y-%m-%d %H:%M UTC") }} · {{ s.last.status }}{% if s.last.problem %} ({{ s.last.problem }}){% endif %}{% else %}<span class="muted">never</span>{% endif %}</td>
+        <td>{% if s.last %}{{ s.last.rows_fetched }} fetched, {{ s.last.rows_new }} new{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

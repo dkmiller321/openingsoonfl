@@ -32,3 +32,9 @@ def login_submit(request: Request, password: str = Form("")):
 def logout(request: Request):
     request.session.clear()
     return RedirectResponse("/login", status_code=303)
+
+
+from osfl.web import leads, vendors  # noqa: E402
+
+router.include_router(leads.router)
+router.include_router(vendors.router)

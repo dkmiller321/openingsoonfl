@@ -38,6 +38,16 @@ N. **[tag] One-line summary.** What happened.
    - *Cost:* small, caught in design.
    - *Kit change:* specify a way to disable the dotenv file for tests in the settings section of CLAUDE.md.
 
+### 2026-10-03 · Stage 3
+
+6. **[stack] FastAPI 0.142 runs `yield`-dependency teardown after the response is sent (default `scope="request"`).** A session dependency that commits on exit let the POST-redirect-GET read stale rows; E2E-16 flaked 2 of 4 runs.
+   - *Cost:* ~10 minutes, 6 extra test runs.
+   - *Kit change:* in CLAUDE.md conventions, require `Depends(get_session, scope="function")` (or an explicit commit before redirecting) for FastAPI kits.
+
+7. **[process] Editing code during an MCP walkthrough leaves the walk server stale** (templates hot-reload, Python doesn't), which produced a misleading 500.
+   - *Cost:* one re-walk.
+   - *Kit change:* in E2E_TESTS.md section 5, say "restart the walkthrough server after any code change, before walking".
+
 ## Sending this log to KitForge (final acceptance step 8)
 
 Send exactly one report. Each log entry becomes one `corrections` item (`text` = the entry with its tag, cost and kit change; `quote` = the user's own words if the user corrected you, else omit it). Use the final test totals.
