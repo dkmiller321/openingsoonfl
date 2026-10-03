@@ -16,6 +16,8 @@ from osfl.leads.export import display_name
 from osfl.leads.queries import LEAD_TYPE_FILTERS, lead_query
 from osfl.models import Lead
 from osfl.settings import SUPPORTED_COUNTIES, get_settings
+from osfl.web.basemap import ATTRIBUTION as MAPBOX_ATTRIBUTION
+from osfl.web.basemap import basemaps
 from osfl.web.common import render, require_login
 from osfl.web.leads import _filter_from
 
@@ -72,6 +74,7 @@ def map_page(request: Request, session: DbSession):
         today=clock.today_et().isoformat(),
         towns=TOWNS, center=BREVARD_CENTER,
         tile_url=settings.map_tile_url, tile_attribution=settings.map_tile_attribution,
+        basemaps=basemaps(settings.mapbox_token), mapbox_attribution=MAPBOX_ATTRIBUTION,
         pending=pending,
     )
 

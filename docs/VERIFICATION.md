@@ -112,3 +112,13 @@ Claude Code appends one section per stage: the stage number, every command run w
   - E2E-35: pass — board 3 / 4, plan-review cards 🥯 🍜 🍜.
   - E2E-19 re-walked: pass ("3 new ... Sep 7" includes Indian River Pho; "5 new ... Oct 5" doesn't).
 - Real-data screenshots (container, 1440 px): `logs/shots/6-map.png` (all Brevard), `7-map-radius-popup.png` (Melbourne 5 mi, 25 leads, popup), `8-pipeline.png` (38 in plan review / 72 licensed, last 6 months).
+
+### Stage 6b · 2026-10-03 · Appearance themes/palettes + Mapbox basemaps (user request)
+- Specs first: E2E-37 (theme/palette persists via cookie, server-rendered), E2E-38 (palette recolours badges and pins), UT-11 (`basemap_url`), committed before code.
+- `uv run ruff check .` -> All checks passed; `uv run pytest tests -q` -> 48 passed; `uv run pytest e2e -m "not smoke" -q` -> 40 passed, twice.
+- Mapbox token copied from the user's other projects into the git-ignored `.env` (never printed); `git grep` confirms no token in tracked files.
+- Container walkthrough (real data), screenshots in `logs/shots/`:
+  - `9-map-mapbox-light.png`: Classic + Mapbox Light (Auto).
+  - `10-dark-ocean-map-panel.png`: Dark + Ocean; Auto basemap switched to Mapbox Dark live; Appearance panel open.
+  - `11-dark-ocean-dashboard.png`, `12-light-sunset-pipeline.png`.
+  - `13-forest-satellite-map.png`: Forest + Satellite, Cocoa Beach 5 mi -> 7 leads, popup.

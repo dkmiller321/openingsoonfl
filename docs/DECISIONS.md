@@ -49,3 +49,7 @@ Claude Code appends one entry per decision it makes without asking: date, decisi
 
 ### D11 · 2026-10-03 · Swapped phone column in chgownr_food.csv
 - Some rows carry the county code in "Primary Phone Number" and the phone in "Mailing County Code"/"Secondary Phone Number". `best_phone()` picks the first value with 10+ digits. Added `osfl rebuild-leads` to re-derive leads from stored raw rows after parser fixes (content hashes don't change, so a re-import alone would skip them).
+
+### D12 · 2026-10-03 · Appearance and Mapbox basemaps (user request)
+- Themes: Light (default), Dark, System. Palettes: Classic, Ocean, Sunset, Forest, Grape, Colour-blind safe (Okabe-Ito orange/blue). All colours are CSS variables on `<html data-theme data-palette>`; tints use `color-mix()`. Choice saved in the `osfl_appearance` cookie (1 year), read server-side so there's no flash. Single operator, so no per-user table.
+- Basemaps: when `MAPBOX_TOKEN` is set, Mapbox raster styles (light-v11, dark-v11, streets-v12, outdoors-v12, satellite-streets-v12) with a picker; "Auto" follows the theme. Without a token, greyscale OSM (inverted in dark). The token is a public `pk.` token embedded in the page, which is normal for Mapbox. Restrict it by URL in the Mapbox account before deploying. Mapbox geocoding isn't used (its free results can't be stored).

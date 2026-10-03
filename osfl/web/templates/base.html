@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="{{ theme }}" data-palette="{{ palette }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -12,7 +12,7 @@
 <body>
   {% if logged_in %}
   <header class="topbar">
-    <a class="brand" href="/">OpeningSoon FL</a>
+    <a class="brand" href="/"><span class="brand-dot"></span>OpeningSoon FL</a>
     <nav class="nav">
       <a data-testid="nav-dashboard" href="/" class="{{ 'active' if active == 'dashboard' }}">Dashboard</a>
       <a data-testid="nav-leads" href="/leads" class="{{ 'active' if active == 'leads' }}">Leads</a>
@@ -21,11 +21,33 @@
       <a data-testid="nav-vendors" href="/vendors" class="{{ 'active' if active == 'vendors' }}">Vendors</a>
       <a data-testid="nav-sources" href="/sources" class="{{ 'active' if active == 'sources' }}">Sources</a>
     </nav>
-    <form method="post" action="/logout"><button class="btn link" data-testid="logout" type="submit">Log out</button></form>
+    <div class="topbar-actions">
+      <div class="appearance">
+        <button class="btn link" type="button" data-testid="appearance-toggle" aria-expanded="false" aria-haspopup="true">&#9680; Appearance</button>
+        <div class="appearance-panel" data-testid="appearance-panel" hidden>
+          <h3>Theme</h3>
+          <div class="seg" role="group" aria-label="Theme">
+            {% for key, label in themes.items() %}
+            <button type="button" data-testid="theme-{{ key }}" data-theme-choice="{{ key }}" aria-pressed="{{ 'true' if theme == key else 'false' }}">{{ label }}</button>
+            {% endfor %}
+          </div>
+          <h3>Colour palette</h3>
+          <div class="swatches" role="group" aria-label="Colour palette">
+            {% for key, (label, accent, applied, licensed) in palettes.items() %}
+            <button type="button" class="swatch" data-testid="palette-{{ key }}" data-palette-choice="{{ key }}" aria-pressed="{{ 'true' if palette == key else 'false' }}">
+              <span class="chips"><i style="background:{{ accent }}"></i><i style="background:{{ applied }}"></i><i style="background:{{ licensed }}"></i></span>{{ label }}
+            </button>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      <form method="post" action="/logout"><button class="btn link" data-testid="logout" type="submit">Log out</button></form>
+    </div>
   </header>
   {% endif %}
   <main>
     {% block content %}{% endblock %}
   </main>
+  <script src="/static/theme.js"></script>
 </body>
 </html>

@@ -20,11 +20,39 @@
   const [cLat, cLng] = el.dataset.center.split(",").map(Number);
 
   const map = L.map(el, { zoomControl: true, scrollWheelZoom: true, maxZoom: 19 }).setView([cLat, cLng], 10);
-  if (el.dataset.tiles) {
-    L.tileLayer(el.dataset.tiles, {
-      attribution: el.dataset.attribution, maxZoom: 19,
-    }).addTo(map);
+  // Basemap (M7): Mapbox styles when a token is configured, else greyscale OSM via CSS filter.
+  const basemapsData = JSON.parse(el.dataset.basemaps || "{}");
+  const basemapSelect = document.getElementById("f-basemap");
+  let baseLayer = null;
+  function darkTheme() {
+    const t = document.documentElement.dataset.theme;
+    return t === "dark" || (t === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   }
+  function applyBasemap() {
+    if (baseLayer) { map.removeLayer(baseLayer); baseLayer = null; }
+    const keys = Object.keys(basemapsData);
+    if (keys.length) {
+      let choice = basemapSelect ? basemapSelect.value : "auto";
+      if (choice === "auto") choice = darkTheme() ? "dark" : "light";
+      el.classList.remove("osm-tiles");
+      baseLayer = L.tileLayer(basemapsData[choice].url, {
+        attribution: el.dataset.mapboxAttribution, tileSize: 512, zoomOffset: -1, maxZoom: 19,
+      }).addTo(map);
+    } else if (el.dataset.tiles) {
+      el.classList.add("osm-tiles");
+      baseLayer = L.tileLayer(el.dataset.tiles, { attribution: el.dataset.attribution, maxZoom: 19 }).addTo(map);
+    }
+  }
+  if (basemapSelect) {
+    try { basemapSelect.value = localStorage.getItem("osfl-basemap") || "auto"; } catch (e) { /* storage blocked */ }
+    if (!basemapSelect.value) basemapSelect.value = "auto";
+    basemapSelect.addEventListener("change", () => {
+      try { localStorage.setItem("osfl-basemap", basemapSelect.value); } catch (e) { /* storage blocked */ }
+      applyBasemap();
+    });
+  }
+  window.addEventListener("osfl:appearance", () => { applyBasemap(); render(); });
+  applyBasemap();
   const cluster = L.markerClusterGroup({
     showCoverageOnHover: false, maxClusterRadius: 45, spiderfyOnMaxZoom: true,
     disableClusteringAtZoom: 15,
@@ -108,7 +136,8 @@
     const radius = f.radius.value === "Off" ? null : Number(f.radius.value);
     if (circle) { map.removeLayer(circle); circle = null; }
     if (center && radius) {
-      circle = L.circle(center, { radius: radius * 1609.34, color: "#111", weight: 1, fillOpacity: 0.04, dashArray: "4 4" }).addTo(map);
+      const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#111";
+      circle = L.circle(center, { radius: radius * 1609.34, color: accent, weight: 1.5, fillColor: accent, fillOpacity: 0.06, dashArray: "4 4" }).addTo(map);
     }
 
     listEl.innerHTML = shown.length ? "" : '<p class="muted small">No leads match.</p>';
@@ -143,7 +172,7 @@
     render();
     if (leads.length) {
       const bounds = L.latLngBounds(leads.map((l) => [l.lat, l.lng]));
-      map.fitBounds(bounds.pad(0.15), { maxZoom: 13 });
+      map.fitBounds(bounds, { maxZoom: 13, padding: [24, 24] });
     }
   }
 

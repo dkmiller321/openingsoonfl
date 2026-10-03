@@ -221,7 +221,7 @@ It produces exactly these 7 leads:
 | `map-list-item` | Side list, one per visible lead (multiple). Has `data-lead-id`, `data-cuisine`. Clicking it opens that pin's card |
 | `map-popup` / `map-popup-link` | The open pin card and its "Open lead" link |
 | `map-slider` / `map-slider-label` / `map-play` | Range input 0..89 = days before today (value 0 = today), label `Through {Mon D, YYYY}`, play button |
-| `map-center` / `map-radius` | Town select (`None`, Cocoa, Cocoa Beach, Melbourne, Merritt Island, Palm Bay, Rockledge, Titusville, Viera) / radius select (`Off`, `5`, `10`, `25`) |
+| `map-center` / `map-radius` | Town select (`Radius from…` = none, Cocoa, Cocoa Beach, Melbourne, Merritt Island, Palm Bay, Rockledge, Titusville, Viera) / radius select (`Off`, `5`, `10`, `25`) |
 | `board-col-applied` / `board-col-licensed` | Board columns |
 | `board-count-applied` / `board-count-licensed` | Column counts (number only) |
 | `appearance-toggle` / `appearance-panel` | Top-bar Appearance button and its panel |

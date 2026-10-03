@@ -35,22 +35,29 @@
     <option value="180">Last 6 months</option><option value="90">Last 90 days</option><option value="365">Last 12 months</option><option value="0">All time</option>
   </select>
   <span class="divider"></span>
-  <select data-testid="map-center" id="f-center" aria-label="Radius centre">
-    <option value="">None</option>
+  <select data-testid="map-center" id="f-center" aria-label="Radius centre" title="Pick a town, or click the map, then choose a radius">
+    <option value="">Radius from…</option>
     {% for name, (lat, lng) in towns.items() %}<option value="{{ lat }},{{ lng }}">{{ name }}</option>{% endfor %}
     <option value="custom" hidden>Map point</option>
   </select>
   <select data-testid="map-radius" id="f-radius" aria-label="Radius">
     <option value="Off">Off</option><option value="5">5 mi</option><option value="10">10 mi</option><option value="25">25 mi</option>
   </select>
-  <span class="muted small" data-testid="map-radius-hint">Pick a town or click the map, then a radius.</span>
+  {% if basemaps %}
+  <span class="divider"></span>
+  <select data-testid="map-basemap" id="f-basemap" aria-label="Basemap">
+    <option value="auto">Map: Auto</option>
+    {% for key, b in basemaps.items() %}<option value="{{ key }}">Map: {{ b.label }}</option>{% endfor %}
+  </select>
+  {% endif %}
 </div>
 
 <div class="map-layout">
   <div class="map-wrap">
     <div id="map" data-testid="map-canvas" data-visible-ids=""
          data-today="{{ today }}" data-center="{{ center[0] }},{{ center[1] }}"
-         data-tiles="{{ tile_url }}" data-attribution="{{ tile_attribution }}"></div>
+         data-tiles="{{ tile_url }}" data-attribution="{{ tile_attribution }}"
+         data-basemaps='{{ basemaps|tojson }}' data-mapbox-attribution="{{ mapbox_attribution }}"></div>
     <div class="timeline-bar">
       <button class="btn small" type="button" data-testid="map-play" id="play">&#9654; Play</button>
       <input type="range" min="0" max="89" value="0" step="1" data-testid="map-slider" id="slider" aria-label="Days before today" dir="rtl">

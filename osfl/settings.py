@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     census_geocoder_url: str = (
         "https://geocoding.geo.census.gov/geocoder/locations/addressbatch"
     )
+    mapbox_token: str = ""
     map_tile_url: str = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
     map_tile_attribution: str = (
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
