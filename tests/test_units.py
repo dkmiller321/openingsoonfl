@@ -177,3 +177,29 @@ def test_ut08_days_ahead() -> None:
     assert days_ahead([("Applied", date(2026, 9, 1)), ("Licensed", date(2026, 9, 29))]) == 28
     assert days_ahead([("Licensed", date(2026, 9, 29))]) == 0
     assert days_ahead([("Applied", date(2026, 9, 1))]) is None
+
+
+# UT-10
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("SALT & SMOKE BBQ", "bbq"),
+        ("COASTAL TACOS", "mexican"),
+        ("CHIPOTLE MEXICAN GRILL - STORE #6070", "mexican"),
+        ("PAPA JOHN'S PIZZA #488", "pizza"),
+        ("INDIAN RIVER PHO", "asian"),
+        ("VIERA NOODLE BAR", "asian"),
+        ("SPACECOAST WAFFLES", "breakfast"),
+        ("BANANA RIVER BAGELS", "bakery"),
+        ("WINGSTOP", "chicken"),
+        ("JIMMY JOHNS", "sandwich"),
+        ("HILTON GARDEN INN", "hotel"),
+        ("ROCKET DOGS", "hotdog"),
+        ("ZERO GRAVITY WINE BAR", "bar"),
+        ("DEN", None),
+    ],
+)
+def test_ut10_guess_cuisine(name: str, expected: str | None) -> None:
+    from osfl.leads.cuisine import guess_cuisine
+
+    assert guess_cuisine(name) == expected

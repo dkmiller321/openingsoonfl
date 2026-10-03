@@ -16,7 +16,7 @@ Every scenario below becomes a pytest-playwright spec in `e2e/` **before** the f
 | `BASE_URL=http://127.0.0.1:8000 uv run pytest e2e -m "not smoke"` | Runs against an already-running app, such as the Compose stack started with the test override. |
 | `RUN_SMOKE=1 uv run pytest e2e -m smoke` | Live-DBPR smoke suite (§3). Never in normal runs. |
 
-Every spec carries its stage marker, and its function name starts with the scenario id, for example `test_e2e_08_plan_review_and_licence_merge`. Chromium only, headless, run serially (the specs share one database). Keep traces on failure under `test-results/`. pytest-playwright wipes `test-results/` at the start of every run, so server logs go to `logs/`, never there.
+Every spec carries its stage marker (`stage0`…`stage6`), and its function name starts with the scenario id, for example `test_e2e_08_plan_review_and_licence_merge`. Chromium only, headless, run serially (the specs share one database). Keep traces on failure under `test-results/`. pytest-playwright wipes `test-results/` at the start of every run, so server logs go to `logs/`, never there.
 
 ### 1.2 The test server
 
@@ -123,6 +123,20 @@ P-1 and W2-1 differ in suffix (`LLC`), punctuation (`N.`), street type (`Parkway
 
 `FixtureFetcher` raises a fixture's configured error from a small manifest, `fixtures/errors.json` (`{"weekly_unavailable": {"newfood.csv": "newfood.csv: HTTP 503"}, ...}`), so failure paths go through the same code as real HTTP errors.
 
+**Geocoding fixture** (`fixtures/geocode.json`): in `GEOCODER_MODE=fixture` the geocoder looks up `normalise_address(address)|zip` here. Anything missing is "unmatched".
+
+| Address key | lat | lng |
+|---|---|---|
+| `1450 N HARBOR CITY BLVD\|32935` (Salt & Smoke) | 28.1170 | -80.6280 |
+| `210 W COCOA BEACH CSWY\|32931` (Coastal Tacos) | 28.3560 | -80.6100 |
+| `3500 S WASHINGTON AVE\|32780` (Rocket Diner) | 28.5810 | -80.8070 |
+| `1100 MALABAR RD SE\|32907` (Spacecoast Waffles) | 27.9990 | -80.6630 |
+| `2235 N COURTENAY PKWY\|32953` (Indian River Pho) | 28.3880 | -80.6990 |
+| `401 DELANNOY AVE\|32922` (Cocoa Village Creperie) | 28.3540 | -80.7250 |
+| `1980 N ATLANTIC AVE STE 101\|32931` (Banana River Bagels) | 28.3410 | -80.6080 |
+
+Viera Noodle Bar is deliberately missing, so it's the one unplaced lead. Every source run geocodes the leads it touched that have no match status yet. The test env sets `GEOCODER_MODE=fixture` and `MAP_TILE_URL=` (empty means no tile layer, so no network).
+
 **Standard dataset.** The helper `seed_standard(api)` does three things:
 
 1. Clock `2026-09-01T12:00:00Z`, then run `import-plan-review` with `plan_review_0901.csv`.
@@ -201,6 +215,16 @@ It produces exactly these 7 leads:
 | `run-row` | Each recent run under a source (multiple) |
 | `source-upload-file` / `source-upload-submit` / `upload-result` | I7 manual upload |
 | `unsubscribe-confirm` | Unsubscribe confirmation text |
+| `nav-map` / `nav-board` | Top navigation (stage 6) |
+| `map-canvas` | Leaflet container. `data-visible-ids` = comma-separated ids of the placed leads that pass the current filters (sorted ascending) |
+| `map-count` / `map-unplaced` | `"{n} leads on the map"` (`"1 lead on the map"` when n = 1) / `"{n} not placed"` (hidden when 0) |
+| `map-list-item` | Side list, one per visible lead (multiple). Has `data-lead-id`, `data-cuisine`. Clicking it opens that pin's card |
+| `map-popup` / `map-popup-link` | The open pin card and its "Open lead" link |
+| `map-slider` / `map-slider-label` / `map-play` | Range input 0..89 = days before today (value 0 = today), label `Through {Mon D, YYYY}`, play button |
+| `map-center` / `map-radius` | Town select (`None`, Cocoa, Cocoa Beach, Melbourne, Merritt Island, Palm Bay, Rockledge, Titusville, Viera) / radius select (`Off`, `5`, `10`, `25`) |
+| `board-col-applied` / `board-col-licensed` | Board columns |
+| `board-count-applied` / `board-count-licensed` | Column counts (number only) |
+| `board-card` / `board-card-icon` | Card (multiple, `data-lead-id`) and its cuisine emoji |
 
 Helpers: `login(page)` fills `login-password` with `test-admin-pw` and submits. `api` is a small httpx client for the `/test/*` routes.
 
@@ -398,6 +422,37 @@ If this test passes, the business works: early, restaurant-specific, no duplicat
 
 Clock `2026-10-06T12:00:00Z`. `send-digests-weekly` → `2026-10-12T11:00:00Z`.
 
+### Stage 6 — Map and pipeline board
+
+Town centres used by `map-center`: Cocoa Beach is 28.3200, -80.6076 (the full table is in `osfl/geo.py`). Distances use the haversine formula in miles.
+
+**E2E-31 @stage6 geocoding on import (M1).** Run `seed_standard`. `GET /test/leads` shows `lat`/`lng` for every lead except Viera Noodle Bar, whose `geo_status` is `unmatched`. Coastal Tacos is at 28.356, -80.61.
+
+**E2E-32 @stage6 map shows placed leads with cuisine icons (M2, M3).** Run `seed_standard`, then log in and open `nav-map`.
+- `map-count` = `6 leads on the map` and `map-unplaced` = `1 not placed`.
+- There are 6 `map-list-item`s.
+- `data-cuisine` values include Salt & Smoke BBQ → `bbq`, Coastal Tacos → `mexican`, Banana River Bagels → `bakery`, Indian River Pho → `asian`, Spacecoast Waffles → `breakfast`.
+- Clicking the Coastal Tacos list item shows `map-popup` containing `COASTAL TACOS` and `Licensed`. `map-popup-link` goes to that lead's page.
+
+**E2E-33 @stage6 time slider (M4).** Run `seed_standard` and open the map.
+- `map-slider-label` = `Through Sep 28, 2026`.
+- Fill `map-slider` with `18`. The label reads `Through Sep 10, 2026`, `map-count` = `2 leads on the map`, and `data-visible-ids` = the ids of Banana River Bagels and Indian River Pho.
+- Fill it with `0`. The count is back to 6.
+
+**E2E-34 @stage6 radius filter (M5).** Run `seed_standard` and open the map.
+- Select `map-center` = `Cocoa Beach` and `map-radius` = `5`. `map-count` = `2 leads on the map` (Coastal Tacos 2.5 mi, Banana River Bagels 1.4 mi).
+- `10` → 3 (adds Indian River Pho at 7.3 mi). `25` → 6. `Off` → 6.
+- Radius and slider combine: radius 5 plus slider 18 → 1 (Banana River Bagels).
+
+**E2E-35 @stage6 pipeline board (M6).** Run `seed_standard`, then log in and open `nav-board`.
+- `board-count-applied` = `3` and `board-count-licensed` = `4`.
+- The Applied column holds Banana River Bagels, Indian River Pho and Viera Noodle Bar.
+- The Spacecoast Waffles card's `board-card-icon` is `🧇`.
+- Clicking a card's name opens the lead page.
+- Hiding The Rocket Diner on its lead page leaves `board-count-licensed` at `3`.
+
+**E2E-36 @stage6 map data respects filters (M2).** `GET /map/data.json?stage=Applied` (logged-in session) returns `{"leads": [...], "unplaced": 1}`. `leads` holds 2 items, each with `id, name, lat, lng, stage, lead_type, cuisine, icon, first_seen, days_ahead, city, phone`. Without a session it redirects to `/login`.
+
 ## 3. Smoke suite — live DBPR (manual only)
 
 These are skipped unless `RUN_SMOKE=1`. They run against a dev server with `SOURCE_MODE=live`, with no reset between steps. Assertions are loose. Each one stays polite (I5): at most 3 file downloads per run.
@@ -422,6 +477,7 @@ These are skipped unless `RUN_SMOKE=1`. They run against a dev server with `SOUR
 | UT-05 | Live fetcher politeness | With a fake transport and a fake sleep: requests are spaced ≥ `FETCH_MIN_INTERVAL_S`, the `User-Agent` equals `FETCH_USER_AGENT`, and a 500 is retried 3 times with growing delays, then raises `FetchError` |
 | UT-06 | `digest_period` | `2026-09-07T11:00Z` weekly → `2026-W37`. `2026-09-13T23:59-04:00` weekly → `2026-W37`. Daily `2026-09-29T03:59Z` → `2026-09-28` (still the 28th in ET) |
 | UT-07 | `health_status` | The red, amber and green rules in §1.5, including "no runs → amber" and "exactly 8 days → green" |
+| UT-10 | `guess_cuisine` | `SALT & SMOKE BBQ` → bbq. `COASTAL TACOS` → mexican. `CHIPOTLE MEXICAN GRILL - STORE #6070` → mexican. `PAPA JOHN'S PIZZA #488` → pizza. `INDIAN RIVER PHO` → asian. `VIERA NOODLE BAR` → asian (noodle beats bar). `SPACECOAST WAFFLES` → breakfast. `BANANA RIVER BAGELS` → bakery. `WINGSTOP` → chicken. `JIMMY JOHNS` → sandwich. `HILTON GARDEN INN` → hotel. `ROCKET DOGS` → hotdog. `ZERO GRAVITY WINE BAR` → bar. `DEN` → none (plate icon; truck icon if mobile) |
 | UT-08 | `days_ahead` | Applied 2026-09-01 + Licensed 2026-09-29 → 28. Licensed only → 0. Applied only → `None` |
 
 ## 5. Playwright MCP walkthrough

@@ -132,6 +132,17 @@ v1 ingests two DBPR sources for Brevard, turns them into one lead per restaurant
 | A3 | Lead detail page with a stage timeline and the raw source records behind each event | P0 |
 | A4 | Dashboard with new leads this week, leads still Applied, active vendors, and the last run per source | P0 |
 
+### Map and pipeline board (M), added 2026-10-03
+
+| ID | Requirement | Priority |
+| --- | --- | --- |
+| M1 | Geocode each lead's address once with the US Census geocoder (batch, free, no key) and store latitude, longitude and match status | P1 |
+| M2 | Admin map page: a light grey basemap with a pin per placed lead. Pin colour = stage, icon = cuisine guessed from the name. Pins cluster when zoomed out. Clicking a pin or list item opens a card with name, stage, days ahead, phone and a link to the lead | P1 |
+| M3 | Cuisine icons: keyword and brand rules on the business name map to about 20 cuisines, each with an emoji. Unmatched leads get a food truck (mobile) or plate icon | P1 |
+| M4 | Time slider over the last 90 days: shows leads first seen on or before the chosen day, with a play button that animates it | P1 |
+| M5 | Radius filter: pick a Brevard town or click the map, choose 5, 10 or 25 miles, and see only the leads inside | P1 |
+| M6 | Pipeline board: "In plan review" and "Licensed" columns of lead cards (icon, name, type, city, days ahead, phone), with the same filters as the leads table | P1 |
+
 ### Source health (H)
 
 | ID | Requirement | Priority |
@@ -206,6 +217,7 @@ flowchart LR
 | Scheduling | APScheduler, in-process | No extra worker service at v1 scale |
 | HTTP fetch | httpx | All three DBPR files are plain CSV downloads. No scraping |
 | Email | Resend (`EMAIL_MODE=resend`) or outbox table (`EMAIL_MODE=outbox`) | Cheap, simple API. Outbox makes digests testable |
+| Map | Leaflet 1.9 + Leaflet.markercluster (vendored static files), CARTO Positron tiles, US Census geocoder | Free, no keys, matches the light grey UI |
 | Tests | pytest + pytest-playwright E2E + `playwright-headless` MCP walkthrough | Tests-first acceptance contract, all in Python like LaunchLedger |
 | Deploy | Docker Compose + Caddy on one VPS | Scheduled jobs and a persistent database suit one small server |
 
@@ -263,6 +275,7 @@ Six stages take v1 from an empty repo to a deployed Brevard feed. Stage 1 alone 
 | 3 Admin console | A1–A4, V1, V2, L5, E4 (web export) | The operator logs in, filters leads to stage Applied, opens one and sees its timeline, creates vendor "Space Coast POS" (POS, Brevard, weekly) and downloads the filtered CSV |
 | 4 Digests | E1, E3, E5, E6, E7, E8, E2, V3 | With the clock frozen at Monday 07:00 ET, the outbox holds one email per active weekly vendor listing only its undelivered leads, with the CSV attached. Running again sends nothing new. The unsubscribe link deactivates the vendor |
 | 5 Source health + deploy | H1–H3, deploy docs, I7 | A fixture run returning 0 rows sends an alert to the outbox and shows the source red on `/sources`. The `@smoke` live import against DBPR succeeds. The full suite passes against the local Compose stack, and docs/DEPLOY.md gives the VPS + Caddy steps |
+| 6 Map + board | M1–M6 | The map shows the standard dataset's placed leads with cuisine icons; the slider at Sep 10 shows only the early plan reviews; a 5-mile radius around Cocoa Beach shows exactly 2 leads; the board shows 3 cards in plan review and 4 licensed |
 | Later (P2) | I8, L6, contact enrichment, vendor portal + Stripe, newsletter, more counties | Planned after 2–3 vendors pay |
 
 ## Success metrics, risks and open questions

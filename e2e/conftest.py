@@ -90,6 +90,8 @@ def make_test_env(port: int, db_url: str) -> dict[str, str]:
             "APP_BASE_URL": f"http://127.0.0.1:{port}",
             "MAX_VENDORS_PER_CATEGORY": "2",
             "COUNTIES": "brevard",
+            "GEOCODER_MODE": "fixture",
+            "MAP_TILE_URL": "",
             "PYTHONIOENCODING": "utf-8",
         }
     )

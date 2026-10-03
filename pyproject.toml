@@ -39,7 +39,7 @@ packages = ["osfl"]
 [tool.pytest.ini_options]
 addopts = "--strict-markers -p no:cacheprovider"
 markers = [
-    "stage0", "stage1", "stage2", "stage3", "stage4", "stage5",
+    "stage0", "stage1", "stage2", "stage3", "stage4", "stage5", "stage6",
     "smoke: live DBPR / Resend tests, manual only",
 ]
 testpaths = ["tests"]
