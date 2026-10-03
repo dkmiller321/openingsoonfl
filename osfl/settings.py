@@ -42,6 +42,15 @@ class Settings(BaseSettings):
     fetch_user_agent: str = "OpeningSoonFL/0.1 (+mailto:operator@example.com)"
     fetch_min_interval_s: float = 2.0
 
+    geocoder_mode: Literal["live", "fixture", "off"] = "live"
+    census_geocoder_url: str = (
+        "https://geocoding.geo.census.gov/geocoder/locations/addressbatch"
+    )
+    map_tile_url: str = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+    map_tile_attribution: str = (
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    )
+
     email_mode: Literal["outbox", "resend"] = "outbox"
     resend_api_key: str = ""
     email_from: str = ""

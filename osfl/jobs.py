@@ -114,11 +114,23 @@ def run_source(
         run.leads_updated = outcome["leads_updated"]
         run.problem = problem
         run.error = outcome["error"]
+    if outcome["status"] == "ok" and (outcome["leads_created"] or outcome["leads_updated"]):
+        _geocode_quietly()
     if problem:
         from osfl.health import alert_for_run
 
         alert_for_run(source, problem, outcome["error"])
     return outcome
+
+
+def _geocode_quietly() -> None:
+    """Geocoding is best effort: a geocoder outage never fails an import (M1)."""
+    from osfl.geo import geocode_pending
+
+    try:
+        geocode_pending()
+    except Exception:  # retried on the next import; leads stay pending (geo_status NULL)
+        log.warning("geocoding failed; will retry next run: %s", traceback.format_exc())
 
 
 def import_weekly(fixture: str | None = None, trigger: str = "scheduled", **kw: Any) -> dict:

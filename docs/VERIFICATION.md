@@ -95,3 +95,20 @@ Claude Code appends one section per stage: the stage number, every command run w
 - App (already running): `docker compose up -d` -> http://127.0.0.1:8010, password = `ADMIN_PASSWORD` in `.env` (`change-me`).
 - This week's Brevard sheet:
   `SOURCE_MODE=live uv run osfl import-plan-review --county brevard && SOURCE_MODE=live uv run osfl import-weekly --county brevard && uv run osfl export-csv --county brevard --since <7 days ago> --out exports/brevard-<date>.csv`
+
+### Stage 6 · 2026-10-03 · Map and pipeline board (added after v1 at the user's request)
+- Specs first: E2E-31..36 and UT-10 written and committed (`stage 6 specs`) before the implementation.
+- First runs: the map JS failed silently because Leaflet.markercluster needs `maxZoom` when there's no tile layer (test env). Then the list -> popup click never opened, because `zoomToShowLayer` / `openPopup` on a clustered marker snapped the zoom back. Fixed with a non-animated `setView` plus a standalone `L.popup`.
+- `uv run ruff check .` -> All checks passed; `uv run pytest tests -q` -> 47 passed.
+- `uv run pytest e2e -m "not smoke" -q` -> 38 passed; second run -> 38 passed.
+- Real data: `osfl geocode` (one Census batch call, 7.8 s) placed 191 of 251 Brevard leads (76%). The 60 misses are mostly suites and newer Palm Bay/Viera roads missing from TIGER. A unit-stripping second pass found 0 more. Nominatim returns road midpoints only, so it isn't used (DECISIONS D10). Cuisine rules recognise 191 of 251 real names.
+- Data bug found on the board: some `chgownr_food.csv` rows have phone and county-code columns swapped (phone "15"/"62"). `best_phone` now takes the first 10-digit value; `osfl rebuild-leads` re-derived all 251 leads from stored raw rows -> 0 short phones, 243 with a phone.
+- CARTO tiles now need an API key ("API KEY REQUIRED" tiles). Switched to OpenStreetMap tiles with a greyscale CSS filter.
+- MCP walkthrough (walk server, fixture data):
+  - E2E-31: pass — 6 matched, Viera Noodle Bar unmatched.
+  - E2E-32: pass — "6 leads on the map", "1 not placed"; icons 🧇 Spacecoast Waffles / The Rocket Diner, 🌮 Coastal Tacos, 🍖 Salt & Smoke, 🥯 Bagels, 🍜 Indian River Pho.
+  - E2E-33: pass — slider 18 -> "Through Sep 10, 2026", 2 leads.
+  - E2E-34: pass — Cocoa Beach radius 5/10/25/Off -> 2/3/6/6.
+  - E2E-35: pass — board 3 / 4, plan-review cards 🥯 🍜 🍜.
+  - E2E-19 re-walked: pass ("3 new ... Sep 7" includes Indian River Pho; "5 new ... Oct 5" doesn't).
+- Real-data screenshots (container, 1440 px): `logs/shots/6-map.png` (all Brevard), `7-map-radius-popup.png` (Melbourne 5 mi, 25 leads, popup), `8-pipeline.png` (38 in plan review / 72 licensed, last 6 months).

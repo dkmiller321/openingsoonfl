@@ -39,3 +39,13 @@ Claude Code appends one entry per decision it makes without asking: date, decisi
 - Digest emails go out inside the transaction that records deliveries; if sending raises, the deliveries roll back. In outbox mode the email row commits in its own transaction.
 - Unsubscribe is a GET (as E2E-23 requires). Mail scanners that prefetch links could unsubscribe a vendor. Revisit with a confirm button or `List-Unsubscribe-Post` before scaling.
 - A scheduled source job in `SOURCE_MODE=fixture` (no fixture given) fails with a logged FetchError and records no run. Production must set `SOURCE_MODE=live` (docs/DEPLOY.md).
+
+### D10 · 2026-10-03 · Map stack (stage 6, user-approved scope: admin map + icons + slider + radius + board)
+- Leaflet 1.9.4 + Leaflet.markercluster 1.5.3, vendored under `osfl/web/static/vendor/leaflet/` (BSD-2 / MIT). Treated as approved: the user chose the map features in this conversation.
+- Tiles: OpenStreetMap standard tiles with a greyscale CSS filter, to match the grey UI. CARTO Positron now returns "API KEY REQUIRED". OSM's tile policy allows light, attributed use like a single-operator admin page. For heavy or public use, switch `MAP_TILE_URL` to a keyed provider (Stadia, MapTiler).
+- Geocoder: US Census batch geocoder (free, no key, public domain), run after each import that touched leads. It's best effort: a failure logs and leaves leads pending. A unit-stripping retry for misses. Nominatim was rejected as a fallback because it resolved misses only to road midpoints (misleading pins).
+- Icons: emoji per cuisine from keyword/brand rules (`osfl/leads/cuisine.py`). No icon library, no logos: new restaurants have no logos yet, and Google Places costs money and restricts use.
+- Map data: `/map/data.json` returns every non-hidden lead; stage/type/since/slider/radius filtering is client-side so the slider is instant.
+
+### D11 · 2026-10-03 · Swapped phone column in chgownr_food.csv
+- Some rows carry the county code in "Primary Phone Number" and the phone in "Mailing County Code"/"Secondary Phone Number". `best_phone()` picks the first value with 10+ digits. Added `osfl rebuild-leads` to re-derive leads from stored raw rows after parser fixes (content hashes don't change, so a re-import alone would skip them).

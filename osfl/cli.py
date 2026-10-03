@@ -80,6 +80,28 @@ def send_digests(cadence: str = typer.Option("weekly", help="weekly or daily")) 
     typer.echo(f"sent {result['emails_sent']} digests")
 
 
+@app.command("rebuild-leads")
+def rebuild_leads() -> None:
+    """Re-derive every lead from its stored raw records (after a parser fix)."""
+    from osfl.db import session_scope
+    from osfl.ingest import rebuild_leads as run_rebuild
+
+    with session_scope() as session:
+        count = run_rebuild(session)
+    typer.echo(f"rebuilt {count} leads")
+
+
+@app.command("geocode")
+def geocode(
+    retry_unmatched: bool = typer.Option(False, help="Also retry leads that failed before"),
+) -> None:
+    """Geocode leads that have no map position yet (US Census batch geocoder)."""
+    from osfl.geo import geocode_pending
+
+    result = geocode_pending(retry_unmatched=retry_unmatched)
+    typer.echo(f"geocoded: {result['matched']} matched, {result['unmatched']} unmatched")
+
+
 @app.command("check-health")
 def check_health() -> None:
     """Report source statuses and send stale alerts."""

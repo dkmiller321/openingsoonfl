@@ -57,6 +57,20 @@ N. **[tag] One-line summary.** What happened.
 9. **[process] Worked well, keep:** writing all 32 specs plus unit tests in stage 0 from the testid contract meant stages 2-4 passed on their first runs. The single `run_source` function shared by CLI, scheduler, upload and `/test/run` made failure paths (E2E-10, -25..27) pass with no extra code.
    - *Kit change:* keep "one function per job" and the pinned fixture tables.
 
+### 2026-10-03 · Stage 6 (map, added after v1)
+
+10. **[source] DBPR's chgownr_food.csv has the phone and county-code columns swapped on some rows.** Leads showed "15" as a phone. The canonical fixtures (hand-made, well-formed) couldn't catch it; the real data on a visual page did.
+    - *Cost:* a parser fix plus a new `rebuild-leads` command.
+    - *Kit change:* add a "real-sample sanity" spec (for example "no lead phone has fewer than 10 digits") alongside the canonical fixtures.
+
+11. **[stack] CARTO basemap tiles now require an API key, and Leaflet.markercluster's `zoomToShowLayer`/`openPopup` misbehave without tiles or animation.**
+    - *Cost:* ~15 minutes of MCP debugging.
+    - *Kit change:* for map features, specify OSM tiles (or a keyed provider) and test popups with a standalone `L.popup`.
+
+12. **[source] The Census geocoder placed only 76% of Brevard leads** (suites, newer roads).
+    - *Cost:* small; documented, and the unplaced count is shown on the map.
+    - *Kit change:* set the expectation in the PRD ("about 75% placed") and show unplaced counts from day 1.
+
 ## Sending this log to KitForge (final acceptance step 8)
 
 Send exactly one report. Each log entry becomes one `corrections` item (`text` = the entry with its tag, cost and kit change; `quote` = the user's own words if the user corrected you, else omit it). Use the final test totals.

@@ -4,6 +4,7 @@ from datetime import UTC, date, datetime, timedelta
 
 import httpx
 import pytest
+
 from osfl.digests.period import digest_period
 from osfl.health import RunInfo, health_status
 from osfl.leads.classify import classify
@@ -203,3 +204,20 @@ def test_ut10_guess_cuisine(name: str, expected: str | None) -> None:
     from osfl.leads.cuisine import guess_cuisine
 
     assert guess_cuisine(name) == expected
+
+
+def test_strip_unit() -> None:
+    from osfl.geo import strip_unit
+
+    assert strip_unit("4590 BABCOCK ST NE STE 105, VIN# 3930") == "4590 BABCOCK ST NE"
+    assert strip_unit("2431 TOWN CTR AVE BLDG #2") == "2431 TOWN CTR AVE"
+    assert strip_unit("130 ST JOHNS HERITAGE PKWY NW #105") == "130 ST JOHNS HERITAGE PKWY NW"
+    assert strip_unit("1450 N HARBOR CITY BLVD") == "1450 N HARBOR CITY BLVD"
+
+
+def test_best_phone_skips_swapped_county_code() -> None:
+    from osfl.sources.dbpr import best_phone
+
+    assert best_phone("62", "727-475-8021", "7274758021") == "727-475-8021"
+    assert best_phone("15", "", "3214448888") == "321-444-8888"
+    assert best_phone("", "") == ""

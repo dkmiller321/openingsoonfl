@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Map · OpeningSoon FL{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="/static/vendor/leaflet/MarkerCluster.css">
+<link rel="stylesheet" href="/static/map.css">
+<script src="/static/vendor/leaflet/leaflet.js"></script>
+<script src="/static/vendor/leaflet/leaflet.markercluster.js"></script>
+{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <div>
+    <h1>Map</h1>
+    <p class="sub">
+      <span data-testid="map-count">&nbsp;</span>
+      <span data-testid="map-unplaced" class="muted" hidden></span>
+      {% if pending %}<span class="muted">· {{ pending }} waiting for a map position</span>{% endif %}
+    </p>
+  </div>
+  <div class="legend small">
+    <span><i class="legend-dot applied"></i>In plan review</span>
+    <span><i class="legend-dot licensed"></i>Licensed</span>
+    <span><i class="legend-dot owner"></i>Ownership change</span>
+  </div>
+</div>
+
+<div class="map-controls">
+  <select data-testid="map-stage" id="f-stage" aria-label="Stage">
+    <option value="All">All stages</option><option value="Applied">In plan review</option><option value="Licensed">Licensed</option>
+  </select>
+  <select data-testid="map-type" id="f-type" aria-label="Lead type">
+    <option value="All">All types</option><option value="new">New</option><option value="ownership_change">Ownership change</option><option value="mobile">Food truck</option>
+  </select>
+  <select data-testid="map-since" id="f-since" aria-label="First seen within">
+    <option value="180">Last 6 months</option><option value="90">Last 90 days</option><option value="365">Last 12 months</option><option value="0">All time</option>
+  </select>
+  <span class="divider"></span>
+  <select data-testid="map-center" id="f-center" aria-label="Radius centre">
+    <option value="">None</option>
+    {% for name, (lat, lng) in towns.items() %}<option value="{{ lat }},{{ lng }}">{{ name }}</option>{% endfor %}
+    <option value="custom" hidden>Map point</option>
+  </select>
+  <select data-testid="map-radius" id="f-radius" aria-label="Radius">
+    <option value="Off">Off</option><option value="5">5 mi</option><option value="10">10 mi</option><option value="25">25 mi</option>
+  </select>
+  <span class="muted small" data-testid="map-radius-hint">Pick a town or click the map, then a radius.</span>
+</div>
+
+<div class="map-layout">
+  <div class="map-wrap">
+    <div id="map" data-testid="map-canvas" data-visible-ids=""
+         data-today="{{ today }}" data-center="{{ center[0] }},{{ center[1] }}"
+         data-tiles="{{ tile_url }}" data-attribution="{{ tile_attribution }}"></div>
+    <div class="timeline-bar">
+      <button class="btn small" type="button" data-testid="map-play" id="play">&#9654; Play</button>
+      <input type="range" min="0" max="89" value="0" step="1" data-testid="map-slider" id="slider" aria-label="Days before today" dir="rtl">
+      <span data-testid="map-slider-label" id="slider-label" class="slider-label"></span>
+    </div>
+  </div>
+  <aside class="map-list" id="list" aria-label="Leads on the map"></aside>
+</div>
+<script src="/static/map.js"></script>
+{% endblock %}

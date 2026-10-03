@@ -10,6 +10,7 @@ import csv
 import hashlib
 import io
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from functools import lru_cache
@@ -124,63 +125,83 @@ def _join(*parts: str) -> str:
     return " ".join(p.strip() for p in parts if p and p.strip())
 
 
+def best_phone(*candidates: str) -> str:
+    """First value that looks like a phone (10+ digits).
+
+    Some chgownr_food.csv rows have the phone and county-code columns swapped
+    ("Primary Phone Number" = "62"), so short numbers are skipped.
+    """
+    for value in candidates:
+        if value and len(re.sub(r"\D", "", value)) >= 10:
+            return format_phone(value)
+    return ""
+
+
+def licence_record(row: dict[str, str], filename: str) -> Record:
+    return Record(
+        source=WEEKLY,
+        file=filename,
+        payload=row,
+        county=row["Location County"].strip().lower(),
+        business_name=_name(row["Business Name"], row["Licensee Name"]),
+        address=_join(row["Location Street Address"], row["Location Address Line 2"]),
+        city=row["Location City"],
+        zip=row["Location Zip Code"][:5],
+        licensee=row["Licensee Name"],
+        phone=best_phone(
+            row["Primary Phone Number"], row["Secondary Phone Number"], row["Mailing County Code"]
+        ),
+        email="",
+        licence_number=licence_digits(row["License Number"]),
+        lead_type=classify(filename, rank=row["Rank Code"]),
+        stage="Licensed",
+        event_date=_date(row["Application Approval Date "]),
+        source_record_id=row["Application Number"],
+    )
+
+
+def plan_review_record(row: dict[str, str]) -> Record:
+    email = row["Facility Email Address"] or row["Contact Email Address"]
+    return Record(
+        source=PLAN_REVIEW,
+        file=PLAN_REVIEW_FILE,
+        payload=row,
+        county=row["County"].strip().lower(),
+        business_name=_name(row[PLAN_NAME_COLUMN], row["Mailing Name"]),
+        address=row["Facility Location Address"],
+        city=row["Facility Location City"],
+        zip=row["Facility Location Zip Code"][:5],
+        licensee=row["Mailing Name"],
+        phone=best_phone(row["Facility Phone Number"], row["Contact Phone Number"],
+                         row["Alternate Phone Number"]),
+        email=email.lower(),
+        licence_number=licence_digits(row["License Number "]),
+        lead_type=classify(
+            PLAN_REVIEW_FILE,
+            transaction=row["Transaction"],
+            facility=row["Type of Facility (Rank)"],
+        ),
+        stage="Applied",
+        event_date=_date(row["Review Application Date"]),
+        source_record_id=row["Application Number"],
+    )
+
+
+def record_from_row(source: str, filename: str, row: dict[str, str]) -> Record:
+    """Re-derive a record from a stored raw row (used by `osfl rebuild-leads`)."""
+    if source == PLAN_REVIEW:
+        return plan_review_record(row)
+    return licence_record(row, filename)
+
+
 def parse_licence_file(data: bytes, filename: str) -> list[Record]:
     """newfood.csv / chgownr_food.csv -> Licensed records."""
-    records = []
-    for row in _read(data, filename):
-        records.append(
-            Record(
-                source=WEEKLY,
-                file=filename,
-                payload=row,
-                county=row["Location County"].strip().lower(),
-                business_name=_name(row["Business Name"], row["Licensee Name"]),
-                address=_join(row["Location Street Address"], row["Location Address Line 2"]),
-                city=row["Location City"],
-                zip=row["Location Zip Code"][:5],
-                licensee=row["Licensee Name"],
-                phone=format_phone(row["Primary Phone Number"] or row["Secondary Phone Number"]),
-                email="",
-                licence_number=licence_digits(row["License Number"]),
-                lead_type=classify(filename, rank=row["Rank Code"]),
-                stage="Licensed",
-                event_date=_date(row["Application Approval Date "]),
-                source_record_id=row["Application Number"],
-            )
-        )
-    return records
+    return [licence_record(row, filename) for row in _read(data, filename)]
 
 
 def parse_plan_review_file(data: bytes, filename: str = PLAN_REVIEW_FILE) -> list[Record]:
     """HR_plan_review.csv -> Applied records."""
-    records = []
-    for row in _read(data, PLAN_REVIEW_FILE):
-        email = row["Facility Email Address"] or row["Contact Email Address"]
-        records.append(
-            Record(
-                source=PLAN_REVIEW,
-                file=PLAN_REVIEW_FILE,
-                payload=row,
-                county=row["County"].strip().lower(),
-                business_name=_name(row[PLAN_NAME_COLUMN], row["Mailing Name"]),
-                address=row["Facility Location Address"],
-                city=row["Facility Location City"],
-                zip=row["Facility Location Zip Code"][:5],
-                licensee=row["Mailing Name"],
-                phone=format_phone(row["Facility Phone Number"] or row["Contact Phone Number"]),
-                email=email.lower(),
-                licence_number=licence_digits(row["License Number "]),
-                lead_type=classify(
-                    PLAN_REVIEW_FILE,
-                    transaction=row["Transaction"],
-                    facility=row["Type of Facility (Rank)"],
-                ),
-                stage="Applied",
-                event_date=_date(row["Review Application Date"]),
-                source_record_id=row["Application Number"],
-            )
-        )
-    return records
+    return [plan_review_record(row) for row in _read(data, PLAN_REVIEW_FILE)]
 
 
 def parse(source: str, filename: str, data: bytes) -> list[Record]:

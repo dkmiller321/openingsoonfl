@@ -8,6 +8,7 @@ Early alerts about new Brevard County restaurants, for the vendors who want to s
 - **Leads:** one per restaurant, merged by licence number or by name, address and ZIP. Each lead has a stage timeline and a "days ahead" figure.
 - **Digests:** each vendor gets the leads it hasn't seen yet, weekly or daily, with a CSV attached.
 - **Admin console:** leads, vendors, digest preview and test send, source health, manual upload.
+- **Map and pipeline:** leads geocoded with the US Census geocoder and shown as cuisine-icon pins on a greyscale OpenStreetMap, with a 90-day time slider and a radius filter. A two-column pipeline board shows plan review vs licensed.
 
 ## Run it locally
 
@@ -23,6 +24,8 @@ uv sync
 uv run osfl import-plan-review --county brevard
 uv run osfl import-weekly --county brevard
 uv run osfl export-csv --county brevard --since 2026-09-26 --out exports/brevard-week.csv
+uv run osfl geocode                  # runs after imports anyway; --retry-unmatched to retry misses
+uv run osfl rebuild-leads            # after a parser fix, re-derive leads from stored raw rows
 ```
 
 ## Develop and test

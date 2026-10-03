@@ -113,5 +113,30 @@ def recompute_lead(session: Session, lead_id: int) -> None:
         EventView(stage=e.stage, event_date=e.event_date, order=e.raw_record_id, fields=e.fields)
         for e in session.scalars(select(LeadEvent).where(LeadEvent.lead_id == lead_id))
     ]
+    before = (lead.address, lead.zip)
     for column, value in summarise(events).items():
         setattr(lead, column, value)
+    if (lead.address, lead.zip) != before:
+        lead.geo_status, lead.lat, lead.lng = None, None, None
+
+
+def rebuild_leads(session: Session) -> int:
+    """Re-parse every lead event's raw row with the current parser, then recompute its lead.
+
+    For parser fixes (e.g. the swapped phone column): content hashes are unchanged, so a
+    re-import alone would skip these rows.
+    """
+    from osfl.sources.dbpr import record_from_row
+
+    touched: set[int] = set()
+    rows = session.execute(
+        select(LeadEvent, RawRecord).join(RawRecord, RawRecord.id == LeadEvent.raw_record_id)
+    ).all()
+    for event, raw in rows:
+        record = record_from_row(raw.source, raw.file, raw.payload)
+        event.fields = record.fields()
+        touched.add(event.lead_id)
+    session.flush()
+    for lead_id in touched:
+        recompute_lead(session, lead_id)
+    return len(touched)

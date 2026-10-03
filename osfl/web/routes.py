@@ -34,9 +34,10 @@ def logout(request: Request):
     return RedirectResponse("/login", status_code=303)
 
 
-from osfl.web import digests, leads, sources, vendors  # noqa: E402
+from osfl.web import digests, leads, map, sources, vendors  # noqa: E402
 
 router.include_router(leads.router)
 router.include_router(vendors.router)
 router.include_router(digests.router)
 router.include_router(sources.router)
+router.include_router(map.router)

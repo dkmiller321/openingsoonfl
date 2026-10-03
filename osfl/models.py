@@ -8,6 +8,7 @@ from sqlalchemy import (
     Boolean,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -79,6 +80,9 @@ class Lead(Base):
     days_ahead: Mapped[int | None] = mapped_column(Integer)
     hidden: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
     note: Mapped[str | None] = mapped_column(Text)
+    lat: Mapped[float | None] = mapped_column(Float)
+    lng: Mapped[float | None] = mapped_column(Float)
+    geo_status: Mapped[str | None] = mapped_column(String(12), index=True)
 
 
 class LeadKey(Base):

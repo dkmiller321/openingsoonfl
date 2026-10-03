@@ -88,6 +88,9 @@ def leads(session: DbSession) -> list[dict[str, Any]]:
                 "phone": lead.phone or "",
                 "email": lead.email or "",
                 "hidden": lead.hidden,
+                "lat": lead.lat,
+                "lng": lead.lng,
+                "geo_status": lead.geo_status,
                 "note": lead.note,
                 "events": [
                     {"stage": e.stage, "date": _iso(e.event_date), "source": e.source}

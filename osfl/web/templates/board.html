@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Pipeline · OpeningSoon FL{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/map.css">{% endblock %}
+{% block content %}
+<h1>Pipeline</h1>
+<p class="sub">Restaurants moving from plan review to licensed. First seen since {{ f.since or 'the start' }}.</p>
+
+<form method="get" action="/board" class="filters">
+  <select name="type" aria-label="Lead type">
+    {% for o in type_options %}<option value="{{ o }}" {{ 'selected' if f.lead_type == o }}>{{ o }}</option>{% endfor %}
+  </select>
+  <select name="county" aria-label="County">
+    <option value="All">All counties</option>
+    {% for c in county_options %}<option value="{{ c }}" {{ 'selected' if f.county == c }}>{{ c|title }}</option>{% endfor %}
+  </select>
+  <input type="date" name="from" aria-label="First seen from" value="{{ f.since or '' }}">
+  <input type="search" name="q" placeholder="Search name or address" aria-label="Search" value="{{ f.q }}">
+  <button class="btn" type="submit">Apply</button>
+</form>
+
+<div class="board">
+  {% for key, title, cards in [('applied', 'In plan review', applied), ('licensed', 'Licensed', licensed)] %}
+  <section class="board-col {{ key }}" data-testid="board-col-{{ key }}">
+    <h2>{{ title }} <span class="count" data-testid="board-count-{{ key }}">{{ cards|length }}</span></h2>
+    {% for c in cards %}
+    <article class="board-card" data-testid="board-card" data-lead-id="{{ c.id }}">
+      <div class="board-icon" data-testid="board-card-icon">{{ c.icon }}</div>
+      <div>
+        <a href="/leads/{{ c.id }}">{{ c.name }}</a>
+        <div class="board-meta">{{ c.type_label }} · {{ c.city|title }}</div>
+        <div class="board-meta">
+          {% if key == 'applied' %}Plan review filed {{ c.first_seen_label }}{% else %}{{ c.days_ahead_label }}{% endif %}
+          {% if c.phone %} · {{ c.phone }}{% endif %}
+        </div>
+      </div>
+    </article>
+    {% else %}
+    <p class="muted small">Nothing here.</p>
+    {% endfor %}
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}
