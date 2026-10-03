@@ -8,3 +8,4 @@ exports/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+scripts/demo/out/

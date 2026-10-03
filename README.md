@@ -39,4 +39,12 @@ RUN_SMOKE=1 SOURCE_MODE=live uv run pytest e2e -m smoke   # live DBPR, manual on
 uv run python scripts/walk_server.py start   # walkthrough server on :8002 for the Playwright MCP
 ```
 
+## Demo video
+
+```bash
+uv run python scripts/demo/run.py   # needs ELEVENLABS_API_KEY in .env and ffmpeg
+```
+
+Clones the local real-data DB into `osfl_demo`, starts a demo server on :8004, generates narration with ElevenLabs (cached per line), records the tour in Playwright at 1280x720, and muxes `scripts/demo/out/openingsoon-demo.mp4`. Edit the script and steps in `scripts/demo/flow.py`.
+
 Docs: [PRD](docs/PRD.md) · [acceptance contract](docs/E2E_TESTS.md) · [decisions](docs/DECISIONS.md) · [verification log](docs/VERIFICATION.md) · [deploy](docs/DEPLOY.md).

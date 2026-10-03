@@ -61,6 +61,7 @@
     }),
   }).addTo(map);
   let circle = null;
+  let lastCircleKey = null;
   let customCenter = null;
   let leads = [];
   let unplacedLeads = [];
@@ -138,6 +139,10 @@
     if (center && radius) {
       const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#111";
       circle = L.circle(center, { radius: radius * 1609.34, color: accent, weight: 1.5, fillColor: accent, fillOpacity: 0.06, dashArray: "4 4" }).addTo(map);
+      const key = `${center.join(",")}|${radius}`;
+      if (key !== lastCircleKey) { map.fitBounds(circle.getBounds(), { padding: [16, 16] }); lastCircleKey = key; }
+    } else {
+      lastCircleKey = null;
     }
 
     listEl.innerHTML = shown.length ? "" : '<p class="muted small">No leads match.</p>';
